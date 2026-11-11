@@ -1,0 +1,10 @@
+# K1: B2 + aumento de datos (brillo/contraste, afín, blur, flip, oclusiones) + scheduler coseno con warmup.
+name: k1_malexnet_aug
+notes: "B2 + aumento de datos (iluminación, blur, oclusiones) + scheduler coseno con 1 época de warmup (B2 usa lr constante)"
+model: {name: malexnet, pretrained: false, freeze: none}
+data: {input_size: 224, augment: true, batch_size: 256, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 1.0e-3, weight_decay: 1.0e-4, scheduler: cosine, warmup_epochs: 1}
+loss: {label_smoothing: 0.0, cost_weight_busy: 1.0}
+train: {epochs: 15, early_stopping_patience: 4, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}

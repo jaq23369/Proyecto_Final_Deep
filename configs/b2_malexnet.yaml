@@ -1,0 +1,10 @@
+# B2: CNN pequeña desde cero tipo mAlexNet (Amato et al., 2017), sin aumento de datos y con lr constante.
+name: b2_malexnet
+notes: "CNN mAlexNet desde cero, sin aumento de datos y con lr constante (baseline de deep learning)"
+model: {name: malexnet, pretrained: false, freeze: none}
+data: {input_size: 224, augment: false, batch_size: 256, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 1.0e-3, weight_decay: 1.0e-4, scheduler: none, warmup_epochs: 0}
+loss: {label_smoothing: 0.0, cost_weight_busy: 1.0}
+train: {epochs: 15, early_stopping_patience: 4, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}

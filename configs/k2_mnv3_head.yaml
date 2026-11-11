@@ -1,0 +1,10 @@
+# K2: MobileNetV3-Small preentrenada en ImageNet, solo se entrena la cabeza.
+name: k2_mnv3_head
+notes: "MobileNetV3-Small de ImageNet con el backbone congelado; solo se entrena la cabeza"
+model: {name: mobilenet_v3_small, pretrained: true, freeze: backbone}
+data: {input_size: 224, augment: false, batch_size: 128, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 1.0e-3, weight_decay: 1.0e-4, scheduler: cosine, warmup_epochs: 0}
+loss: {label_smoothing: 0.0, cost_weight_busy: 1.0}
+train: {epochs: 10, early_stopping_patience: 3, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}

@@ -1,0 +1,10 @@
+# K5: modelo grande de referencia (rendimientos decrecientes frente a K3).
+name: k5_efficientnet_b0
+notes: "EfficientNet-B0 de ImageNet con fine-tuning completo y aumento (modelo grande de referencia)"
+model: {name: efficientnet_b0, pretrained: true, freeze: none}
+data: {input_size: 224, augment: true, batch_size: 64, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 3.0e-4, weight_decay: 1.0e-4, scheduler: cosine, warmup_epochs: 1}
+loss: {label_smoothing: 0.0, cost_weight_busy: 1.0}
+train: {epochs: 10, early_stopping_patience: 3, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}

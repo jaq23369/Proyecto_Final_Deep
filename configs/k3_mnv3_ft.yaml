@@ -1,0 +1,10 @@
+# K3: MobileNetV3-Small con fine-tuning completo + lr coseno + aumento (candidato principal).
+name: k3_mnv3_ft
+notes: "K2 con fine-tuning completo (todo el backbone), lr 3e-4 coseno con warmup y aumento de datos"
+model: {name: mobilenet_v3_small, pretrained: true, freeze: none}
+data: {input_size: 224, augment: true, batch_size: 128, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 3.0e-4, weight_decay: 1.0e-4, scheduler: cosine, warmup_epochs: 1}
+loss: {label_smoothing: 0.0, cost_weight_busy: 1.0}
+train: {epochs: 10, early_stopping_patience: 3, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}
