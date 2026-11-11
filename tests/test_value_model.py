@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,17 @@ from cupo import value_model as vm
 
 REPO = Path(__file__).resolve().parents[1]
 CONFIDENCE_LEVELS = {"medido", "literatura", "estimado"}
+
+
+def binomial_expected_inv(q: float, F: int) -> float:
+    """E[1/(K + 1)] con K ~ Bin(F, q), por suma directa de la distribución."""
+    return sum(math.comb(F, k) * q**k * (1 - q) ** (F - k) / (k + 1) for k in range(F + 1))
+
+
+def binomial_travel_fraction(q: float, F: int) -> float:
+    """E[1/(K + 1) | K >= 1] por suma directa (solo para q no despreciable)."""
+    p_pos = 1 - (1 - q) ** F
+    return sum(math.comb(F, k) * q**k * (1 - q) ** (F - k) / (k + 1) for k in range(1, F + 1)) / p_pos
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +62,8 @@ def test_load_scenarios(com, uvg):
 def test_default_values_match_spec(com, uvg):
     c, u = com["params"], uvg["params"]
     expected_common = {
-        "espacios": 164, "horas_operacion_dia": 14, "refresh_s": 30, "t_directo_min": 1.0,
+        "espacios": 164, "horas_operacion_dia": 14, "refresh_s": 30, "t_acceso_min": 0.85,
+        "t_recorrido_total_min": 4.0,
         "t_redireccion_min": 1.5, "segundos_por_revision": 10, "revisiones_por_hora_amber": 30,
         "fraccion_tiempo_operador": 0.5, "operadores_incluidos": 1, "salario_operador_Q_h": 25,
         "n_camaras": 9, "costo_camara_Q": 1500, "costo_servidor_mes_Q": 400, "meses_amortizacion": 36,
@@ -59,6 +72,7 @@ def test_default_values_match_spec(com, uvg):
     for k, v in expected_common.items():
         assert c[k] == pytest.approx(v), k
         assert u[k] == pytest.approx(v), k
+    assert "t_directo_min" not in c and "t_directo_min" not in u
     assert (c["ocupacion"], c["llegadas_dia"], c["dias_mes"], c["t_base_min"]) == (0.85, 1100, 30, 6.0)
     assert (c["abandono_base"], c["ingreso_por_visita_Q"], c["valor_tiempo_Q_h"]) == (0.08, 25, 25)
     assert (u["ocupacion"], u["llegadas_dia"], u["dias_semestre"], u["meses_semestre"]) == (0.90, 900, 90, 4.5)
@@ -90,8 +104,17 @@ def test_perfect_classifier(scenario, request):
     prm = cfg["params"]
     r = vm.compute_value(make_rates(0.0, 0.0, 1.0, 0.0), cfg)
     assert r["e"] == 0.0 and r["P0"] == 0.0
-    assert r["T_sys"] == pytest.approx(prm["t_directo_min"], abs=1e-12)
-    assert r["A"] == pytest.approx(prm["t_base_min"] - prm["t_directo_min"], abs=1e-12)
+    # Se ven todos los libres: el más cercano está a L/(F + 1) del inicio.
+    F = r["F"]
+    t_perfect = prm["t_acceso_min"] + prm["t_recorrido_total_min"] / (F + 1)
+    assert r["frac_recorrido"] == pytest.approx(1 / (F + 1))
+    assert r["factor_recorrido"] == pytest.approx(1.0)
+    assert r["t_directo_eff"] == pytest.approx(t_perfect)
+    assert r["T_sys"] == pytest.approx(t_perfect, abs=1e-12)
+    expected = {"comercial": 0.85 + 4 / 26, "uvg": 0.85 + 4 / 17}[scenario]
+    assert r["T_sys"] == pytest.approx(expected, abs=1e-12)
+    assert r["T_sys"] == pytest.approx({"comercial": 1.003846, "uvg": 1.085294}[scenario], abs=1e-6)
+    assert r["A"] == pytest.approx(prm["t_base_min"] - t_perfect, abs=1e-12)
     assert r["t_sys_capped"] is False
     assert r["n_amber"] == 0.0 and r["costo_verif_" + cfg["periodo"]] == 0.0
 
@@ -132,7 +155,9 @@ def test_commercial_hand_case(com):
     r = vm.compute_value(make_rates(0.02, 0.0, 0.97, 0.0), com)
     e =0.85 * 0.02 / (0.85 * 0.02 + 0.15 * 0.97)  # 0.017 / 0.1625
     P0 = 0.03 ** 25
-    T = (1 - P0) * (1.0 + e / (1 - e) * 1.5) + P0 * 6.0
+    frac = binomial_travel_fraction(0.97, 25)  # ≈ 1/(26·0.97) = 0.039651
+    t_direct = min(0.85 + 4.0 * frac, 6.0)  # 1.008604
+    T = (1 - P0) * (t_direct + e / (1 - e) * 1.5) + P0 * 6.0
     dab = 0.08 - 0.08 * T / 6.0
     income = 1100 * 30 * dab * 25
     infra = 9 * 1500 / 36 + 400  # 775
@@ -142,7 +167,11 @@ def test_commercial_hand_case(com):
     assert r["e"] == pytest.approx(e, abs=1e-12)
     assert r["e"] == pytest.approx(0.1046154, abs=1e-6)
     assert r["T_sys"] == pytest.approx(T)
-    assert r["T_sys"] == pytest.approx(1.175258, abs=1e-6)
+    assert r["frac_recorrido"] == pytest.approx(frac, rel=1e-12)
+    assert r["frac_recorrido"] == pytest.approx(0.0396511, abs=1e-7)
+    assert r["t_directo_eff"] == pytest.approx(t_direct)
+    assert r["T_sys"] == pytest.approx(1.183862, abs=1e-6)
+    assert r["A"] == pytest.approx(4.816138, abs=1e-6)
     assert r["A"] == pytest.approx(6.0 - T)
     assert r["costo_infra_mes"] == pytest.approx(775.0)
     assert r["pred_mes"] == pytest.approx(8_265_600)
@@ -150,7 +179,7 @@ def test_commercial_hand_case(com):
     assert r["costo_verif_mes"] == 0.0
     assert r["ingreso_recuperado_mes"] == pytest.approx(income)
     assert r["valor_operador_mes"] == pytest.approx(income - infra - inf)
-    assert r["valor_operador_mes"] == pytest.approx(52131.85, abs=0.01)
+    assert r["valor_operador_mes"] == pytest.approx(52037.21, abs=0.01)
     assert r["objective"] == r["valor_operador_mes"]
     assert r["t_sys_capped"] is False
     json.dumps(r)
@@ -163,7 +192,9 @@ def test_uvg_hand_case_with_verify_band(uvg):
     q_eff = 0.97
     e = 0.9 * 0.02 / (0.9 * 0.02 + 0.1 * q_eff)
     P0 = (1 - q_eff) ** F
-    T = (1 - P0) * (1 + e / (1 - e) * 1.5) + P0 * 7.0
+    frac = binomial_travel_fraction(q_eff, F)  # ≈ 1/(17·0.97) = 0.060643
+    t_direct = min(0.85 + 4.0 * frac, 7.0)
+    T = (1 - P0) * (t_direct + e / (1 - e) * 1.5) + P0 * 7.0
     hours = 900 * 90 * (7.0 - T) / 60
     n_amber = 164 * (0.9 * 0.03 + 0.1 * 0.02)  # 4.756
     extra = max(0.0, n_amber * 30 * 10 / 3600 - 0.5)  # 0 (0.396 < 0.5)
@@ -176,6 +207,8 @@ def test_uvg_hand_case_with_verify_band(uvg):
     assert r["costo_infra_semestre"] == pytest.approx(775.0 * 4.5)
     assert r["horas_ahorradas_semestre"] == pytest.approx(hours)
     assert r["valor_neto_semestre_Q"] == pytest.approx(hours * vt - costs)
+    assert r["valor_neto_semestre_Q"] == pytest.approx(155600.93, abs=0.01)
+    assert r["T_sys"] == pytest.approx(1.370922, abs=1e-6)
     assert r["objective"] == r["valor_neto_semestre_Q"]
     assert r["minutos_ahorrados_por_llegada"] == pytest.approx(7.0 - T)
 
@@ -363,3 +396,152 @@ def test_with_param_does_not_mutate(com):
     assert com == before
     with pytest.raises(KeyError):
         vm.with_param(com, "no_existe", 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Capacidad oculta: recorrido hasta el libre verde más cercano
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("F", [1, 2, 5, 16, 25, 60])
+@pytest.mark.parametrize("q", [0.001, 0.01, 0.1, 0.24, 0.5, 0.75, 0.97, 1.0])
+def test_expected_inv_and_travel_fraction_match_binomial_sum(q, F):
+    assert float(vm.expected_inv_k_plus_1(q, F)) == pytest.approx(binomial_expected_inv(q, F), rel=1e-10)
+    # Forma cerrada (1 − (1 − q)^(F+1)) / ((F + 1)·q)
+    closed = (1 - (1 - q) ** (F + 1)) / ((F + 1) * q)
+    assert float(vm.expected_inv_k_plus_1(q, F)) == pytest.approx(closed, rel=1e-10)
+    frac = float(vm.travel_fraction(q, F))
+    assert frac == pytest.approx(binomial_travel_fraction(q, F), rel=1e-8)
+    # Entre 1/(F + 1) (todos visibles) y 1/2 (un solo verde).
+    assert 1 / (F + 1) - 1e-12 <= frac <= 0.5 + 1e-12
+
+
+def test_travel_fraction_vectorized():
+    q = np.array([0.01, 0.3, 0.97, 1.0])
+    out = vm.travel_fraction(q, 25)
+    assert out.shape == q.shape
+    for qi, oi in zip(q, out):
+        assert oi == pytest.approx(binomial_travel_fraction(float(qi), 25), rel=1e-8)
+
+
+def exact_travel_fraction(q: float, F: int) -> float:
+    """E[1/(K + 1) | K >= 1] en aritmética racional exacta (referencia sin cancelación)."""
+    qf = Fraction(q)
+    num = sum(math.comb(F, k) * qf**k * (1 - qf) ** (F - k) / (k + 1) for k in range(1, F + 1))
+    return float(num / (1 - (1 - qf) ** F))
+
+
+@pytest.mark.parametrize("F", [1, 16, 25])
+def test_limit_q_to_zero(F):
+    # E[1/(K + 1)] → 1 y la fracción condicionada a K >= 1 → 1/2 (un solo verde).
+    assert float(vm.expected_inv_k_plus_1(0.0, F)) == 1.0
+    assert float(vm.travel_fraction(0.0, F)) == 0.5
+    for q in (1e-16, 1e-15, 1e-14):  # 1 − P0 < 1e-12 → límite 1/2
+        assert float(vm.expected_inv_k_plus_1(q, F)) == pytest.approx(1.0, abs=1e-12)
+        assert float(vm.travel_fraction(q, F)) == 0.5
+    # Rango alcanzable con tasas reales (q = k / n_libres, n_libres ~ 1e5): precisión alta.
+    for q in (1e-6, 1e-5, 1e-4, 1e-3):
+        f = float(vm.travel_fraction(q, F))
+        assert f == pytest.approx(exact_travel_fraction(q, F), abs=1e-9)
+        assert f == pytest.approx(0.5 - (F - 1) * q / 12, abs=1e-6)  # desarrollo de primer orden
+
+
+@pytest.mark.xfail(reason="travel_fraction pierde precisión por cancelación en E − P0 "
+                          "cuando 1 − P0 apenas supera 1e-12 (q ~ 1e-13): devuelve > 1/2",
+                   strict=False)
+@pytest.mark.parametrize("F", [16, 25])
+def test_travel_fraction_precision_near_cutoff(F):
+    for q in (1e-13, 1e-12, 1e-11):
+        f = float(vm.travel_fraction(q, F))
+        assert f <= 0.5
+        assert f == pytest.approx(exact_travel_fraction(q, F), abs=1e-6)
+
+
+def test_travel_fraction_q_one():
+    assert float(vm.travel_fraction(1.0, 25)) == pytest.approx(1 / 26)
+    assert float(vm.expected_inv_k_plus_1(1.0, 25)) == pytest.approx(1 / 26)
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+def test_t_sys_strictly_decreasing_in_q_LL(scenario, request):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    t_base = cfg["params"]["t_base_min"]
+    q_LL = np.linspace(0.0, 1.0, 201)
+    r = vm.compute_value(make_rates(0.0 * q_LL, 0.0 * q_LL, q_LL, 0.0 * q_LL), cfg)
+    T = np.asarray(r["T_sys"])
+    assert T[0] == pytest.approx(t_base)  # sin verdes se busca como hoy
+    assert np.all(T <= t_base + 1e-12)
+    assert np.all(np.diff(T) < 0), np.diff(T).max()
+    assert not np.any(r["t_sys_capped"])
+    # Escalar en un punto intermedio coincide con el arreglo.
+    s = vm.compute_value(make_rates(0.0, 0.0, float(q_LL[37]), 0.0), cfg)
+    assert s["T_sys"] == pytest.approx(T[37])
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+def test_degenerate_loses_to_good(scenario, request):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    degenerate = make_rates(0.0, 0.0, 0.24, 0.0)  # q_LO = 0.76: casi todo marcado ocupado
+    good = make_rates(0.02, 0.0, 0.97, 0.0)
+    assert degenerate["q_LO"] == pytest.approx(0.76)
+    r_deg = vm.compute_value(degenerate, cfg)
+    r_good = vm.compute_value(good, cfg)
+    assert r_deg["objective"] < r_good["objective"]
+    assert r_deg["T_sys"] > r_good["T_sys"]
+    assert r_deg["factor_recorrido"] > r_good["factor_recorrido"] >= 1.0
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+def test_t_directo_eff_capped_at_t_base(scenario, request):
+    cfg = vm.with_param(request.getfixturevalue("com" if scenario == "comercial" else "uvg"),
+                        "t_recorrido_total_min", 100.0)
+    r = vm.compute_value(make_rates(0.0, 0.0, 0.05, 0.0), cfg)
+    assert r["t_directo_eff"] == pytest.approx(cfg["params"]["t_base_min"])
+    assert r["T_sys"] <= cfg["params"]["t_base_min"] + 1e-12
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+def test_more_travel_time_lowers_value(scenario, request):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    rates = make_rates(0.02, 0.0, 0.9, 0.0)
+    vals = [vm.compute_value(rates, vm.with_param(cfg, "t_recorrido_total_min", L))["objective"]
+            for L in (1.0, 2.0, 4.0, 8.0)]
+    assert all(a > b for a, b in zip(vals, vals[1:]))
+
+
+# ---------------------------------------------------------------------------
+# JSON estricto
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+def test_status_quo_travel_nan_and_json_safe(scenario, request):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    r = vm.status_quo(cfg)
+    assert math.isnan(r["frac_recorrido"]) and math.isnan(r["factor_recorrido"])
+    with pytest.raises(ValueError):
+        json.dumps(r, allow_nan=False)
+    safe = vm.json_safe(r)
+    assert safe["frac_recorrido"] is None and safe["factor_recorrido"] is None
+    back = json.loads(json.dumps(safe, allow_nan=False))
+    assert back["objective"] == 0.0
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+def test_compute_value_json_safe_strict(scenario, request, good_scores):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    y, p = good_scores
+    for rates in (metrics.three_state_rates(y, p, 0.3, 0.7), make_rates(0.0, 0.0, 1.0, 0.0),
+                  make_rates(0.0, 0.0, 0.0, 0.0), make_rates(0.5, 0.0, 0.3, 0.0)):
+        r = vm.compute_value(rates, cfg)
+        back = json.loads(json.dumps(vm.json_safe(r), allow_nan=False))
+        assert back["objective"] == pytest.approx(r["objective"])
+    # Arreglos (búsqueda vectorizada) → listas.
+    q = np.array([0.0, 0.5, 1.0])
+    arr = vm.compute_value(make_rates(0.0 * q, 0.0 * q, q, 0.0 * q), cfg)
+    safe = vm.json_safe(arr)
+    assert isinstance(safe["T_sys"], list) and len(safe["T_sys"]) == 3
+    json.dumps(safe, allow_nan=False)
+
+
+def test_json_safe_converts_nonfinite():
+    out = vm.json_safe({"a": float("nan"), "b": float("inf"), "c": np.array([1.0, np.nan]), "d": "x", "e": 2})
+    assert out == {"a": None, "b": None, "c": [1.0, None], "d": "x", "e": 2}

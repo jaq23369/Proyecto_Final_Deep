@@ -109,7 +109,23 @@ def test_value_curve_consistent_with_optimize(scenario, good_scores, request):
     assert row["accuracy"] == pytest.approx(bm["accuracy"])
     assert row["f1_macro"] == pytest.approx(bm["f1_macro"])
     assert row["rate_busy_as_free"] == pytest.approx(bm["rate_busy_as_free"])
-    # Con t_L == t_H la franja está vacía (salvo ruido de punto flotante de 1 − a − b).
-    np.testing.assert_allclose(single["verify_rate"], 0.0, atol=1e-12)
+    # Con t_L == t_H la franja está vacía: verify_rate exactamente 0.
+    assert (single["verify_rate"] == 0.0).all(), single["verify_rate"].abs().max()
     v05 = vm.compute_value(metrics.three_state_rates(y, p, 0.5, 0.5), cfg)["objective"]
     assert row["value"] == pytest.approx(v05)
+
+
+def test_grid_verify_rates_in_unit_interval(good_scores, weak_scores):
+    for y, p in (good_scores, weak_scores):
+        scores = thresholds._ClassScores(y, p)
+        t_L, t_H = thresholds.threshold_grid(0.01)
+        r = scores.rates(t_L[:, None], t_H[None, :])
+        for k in ("q_OV", "q_LV", "verify_rate"):
+            assert np.all(r[k] >= 0.0) and np.all(r[k] <= 1.0), k
+        # Diagonal t_L == t_H (t = 0.5): franja vacía exacta.
+        assert r["q_OV"][-1, 0] == 0.0 and r["q_LV"][-1, 0] == 0.0
+        t = np.round(np.linspace(0.0, 1.0, 101), 10)
+        same = scores.rates(t, t)
+        assert np.all(same["q_OV"] == 0.0) and np.all(same["q_LV"] == 0.0), (
+            same["q_OV"].max(), same["q_LV"].max())
+        assert np.all(same["verify_rate"] == 0.0)

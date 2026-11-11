@@ -24,15 +24,45 @@ Por eso, para el conductor, la tasa efectiva de libres mostrados en verde es
 nunca convierte un ocupado en verde). El precio de ese beneficio es el costo
 de revisión de la franja.
 
+Capacidad oculta y recorrido
+----------------------------
+Los libres que no se muestran en verde (``q_LO`` y la parte de ``q_LV`` que no
+termina en verde) sí cuestan: el conductor tiene menos opciones visibles y
+recorre más hasta el libre verde más cercano.
+
+Supuesto: los libres están repartidos de forma uniforme a lo largo de un
+trayecto lineal que toma ``L = t_recorrido_total`` minutos recorrer completo.
+Con ``k`` libres visibles, el más cercano está en promedio a ``L/(k + 1)``
+(estadística de orden de uniformes). El número de libres visibles es
+``K ~ Bin(F, q)`` con ``q = q_LL_eff``, y su esperanza exacta es
+
+    E[1/(K + 1)] = (1 − (1 − q)^(F+1)) / ((F + 1)·q)      (límite 1 cuando q → 0)
+
+En la rama guiada (``K ≥ 1``, probabilidad ``1 − P0``) se condiciona:
+
+    frac_recorrido = (E[1/(K + 1)] − P0) / (1 − P0)
+
+con límite 1/2 cuando ``P0 → 1`` (un solo verde visible). Si se muestran todos
+los libres (``q = 1``) ``frac_recorrido = 1/(F + 1)``. ``factor_recorrido =
+frac_recorrido·(F + 1)`` vale 1 en ese caso y crece al ocultar libres;
+``k_vis = F·q`` se reporta solo como referencia. Así el ``t_H`` óptimo ya no
+queda fijo en 0.5 por construcción: subir ``t_H`` manda a verificar libres que
+estaban ocultos en rojo y acorta el recorrido, a cambio del costo de revisión.
+
+Robustez: el castigo a la capacidad oculta escala con ``L``. Con ``L`` menor a
+~1.2-1.5 min un modelo degenerado que oculta casi todos los libres (pero casi
+nunca muestra un ocupado en verde) puede volver a competir con uno bueno; con
+los valores por defecto, un degenerado con q_OL = 0 y q_LL = 0.24 supera a uno
+con q_OL = 0.02 y q_LL = 0.97 si L < 1.42 min (comercial) o L < 1.19 min (UVG).
+El análisis de sensibilidad (tornado) de ``t_recorrido_total_min`` lo muestra.
+
 Limitaciones conocidas
 ----------------------
-1. ``q_LO`` (libre mostrado ocupado, capacidad oculta) no se penaliza más allá
-   de ``P0``. Con ocupación alta (π ≈ 0.85-0.90, F ≈ 16-25), ``P0`` ≈ 0 aunque
-   se oculten muchos libres, porque al conductor le basta un verde correcto; el
-   error caro es ocupado→libre (``q_OL``, que entra por ``e``).
-2. Consecuencia: subir ``t_H`` solo pasa espacios de rojo a amarillo, así que
-   por construcción el ``t_H`` óptimo tiende a 0.5 y la franja de verificar
-   queda en ``[t_L, 0.5)``; su beneficio viene de bajar ``t_L``.
+1. Con ocupación alta (π ≈ 0.85-0.90, F ≈ 16-25), ``P0`` ≈ 0 aunque se oculten
+   muchos libres; la capacidad oculta solo pesa a través del recorrido, que
+   supone libres repartidos uniformemente y un recorrido lineal.
+2. La verificación se supone perfecta e inmediata: los libres verificados pasan
+   a verde y los ocupados verificados a rojo, sin errores del operador.
 
 Paso 1: probabilidades
 ----------------------
@@ -42,16 +72,28 @@ Paso 1: probabilidades
     e        = π·q_OL / (π·q_OL + (1 − π)·q_LL_eff) P(un "libre" mostrado esté ocupado); si el denominador es 0, e = 1
     e_c      = min(e, 0.95)                        tope numérico
     P0       = (1 − q_LL_eff)^F                    ningún libre real se muestra en verde → se busca como hoy
+    k_vis    = F · q_LL_eff                         libres visibles en verde esperados (informativo)
 
 Paso 2: tiempo y ahorro (minutos por llegada)
 ---------------------------------------------
-    T_guiado = (1 − P0)·[t_directo + (e_c/(1 − e_c))·t_redireccion] + P0·t_base
-    T_sys    = min(T_guiado, t_base + t_redireccion)
-    A        = t_base − T_sys                      ahorro por llegada (puede ser negativo)
+    frac_recorrido   = (E[1/(K + 1)] − P0) / (1 − P0)   ver "Capacidad oculta y recorrido"
+    factor_recorrido = frac_recorrido · (F + 1)        1 si se ven todos los libres
+    t_directo_eff    = min(t_acceso + L · frac_recorrido, t_base)
+    T_guiado         = t_directo_eff + (e_c/(1 − e_c))·t_redireccion
+    T_sys            = min((1 − P0)·T_guiado + P0·t_base, t_base + t_redireccion)
+    A                = t_base − T_sys                  ahorro por llegada (puede ser negativo)
 
-El tope de ``T_sys`` refleja que, tras un intento fallido, el conductor deja de
-confiar en la app y busca como hoy: lo peor que pasa es perder una redirección
-y luego buscar con el método actual. ``t_sys_capped`` indica si el tope se activó.
+``t_acceso`` es entrar al parqueo y estacionar (no depende de dónde esté el
+espacio) y ``L = t_recorrido_total`` es recorrer todos los pasillos a velocidad
+de búsqueda. Con un clasificador perfecto ``T_sys = t_acceso + L/(F + 1)``
+(≈ 1.00 min en comercial con F = 25 y ≈ 1.09 min en UVG con F = 16).
+
+El tope de ``t_directo_eff`` en ``t_base`` refleja que, si el verde visible más
+cercano está más lejos de lo que costaría buscar como hoy, el conductor busca
+como hoy. El tope de ``T_sys`` refleja que, tras un intento fallido, el
+conductor deja de confiar en la app y busca como hoy: lo peor que pasa es
+perder una redirección y luego buscar con el método actual. ``t_sys_capped``
+indica si el tope se activó.
 
 Paso 3: abandono y volúmenes (por periodo: mes o semestre)
 ----------------------------------------------------------
@@ -138,7 +180,7 @@ _PROB_BOUNDS: dict[str, tuple[float, float]] = {
 
 _REQUIRED_PARAMS = (
     "espacios", "ocupacion", "llegadas_dia", "horas_operacion_dia", "refresh_s",
-    "t_base_min", "t_directo_min", "t_redireccion_min",
+    "t_base_min", "t_acceso_min", "t_recorrido_total_min", "t_redireccion_min",
     "n_camaras", "costo_camara_Q", "costo_servidor_mes_Q", "meses_amortizacion",
     "costo_sensor_instalado_Q", "mantenimiento_sensores_mes_Q",
     "segundos_por_revision", "revisiones_por_hora_amber", "fraccion_tiempo_operador",
@@ -328,13 +370,62 @@ def _probabilities(rates: Mapping[str, Any], prm: Mapping[str, float]) -> dict[s
     }
 
 
-def _time_with_system(prob: Mapping[str, Any], prm: Mapping[str, float]) -> tuple[Any, Any]:
+_P0_EPS = 1e-8  # si 1 − P0 es menor, se usa el límite de un solo verde visible
+
+
+def _one_minus_pow(q: np.ndarray, n: int) -> np.ndarray:
+    """1 − (1 − q)^n calculado de forma estable para q pequeño (q ∈ [0, 1])."""
+    inner = np.log1p(-np.minimum(q, 0.5)) * n
+    stable = -np.expm1(inner)
+    direct = 1.0 - (1.0 - q) ** n
+    return np.where(q < 0.5, stable, direct)
+
+
+def expected_inv_k_plus_1(q: Any, F: int) -> Any:
+    """E[1/(K + 1)] con K ~ Bin(F, q): (1 − (1 − q)^(F+1)) / ((F + 1)·q); límite 1 si q → 0."""
+    q = np.clip(np.asarray(q, dtype=float), 0.0, 1.0)
+    safe_q = np.where(q > 0, q, 1.0)
+    return np.where(q > 0, _one_minus_pow(q, F + 1) / ((F + 1) * safe_q), 1.0)
+
+
+def travel_fraction(q: Any, F: int) -> Any:
+    """E[1/(K + 1) | K ≥ 1]: fracción esperada de L hasta el verde más cercano.
+
+    frac = (E[1/(K + 1)] − P0) / (1 − P0), con P0 = (1 − q)^F; si 1 − P0 < 1e-8
+    se usa el límite 1/2 (un solo verde visible).
+    """
+    q = np.clip(np.asarray(q, dtype=float), 0.0, 1.0)
+    p0 = (1.0 - q) ** F
+    not_p0 = _one_minus_pow(q, F)
+    ok = not_p0 >= _P0_EPS
+    frac = (expected_inv_k_plus_1(q, F) - p0) / np.where(ok, not_p0, 1.0)
+    return np.where(ok, frac, 0.5)
+
+
+def _travel(prob: Mapping[str, Any], prm: Mapping[str, float]) -> dict[str, Any]:
+    """Recorrido hasta el libre verde más cercano (estadística de orden exacta)."""
+    F = prob["F"]
+    q = np.clip(prob["q_LL_eff"], 0.0, 1.0)
+    frac = travel_fraction(q, F)
+    t_direct = np.minimum(prm["t_acceso_min"] + prm["t_recorrido_total_min"] * frac,
+                          prm["t_base_min"])
+    return {
+        "k_vis": F * q,
+        "frac_recorrido": frac,
+        "factor_recorrido": frac * (F + 1),
+        "t_directo_eff": t_direct,
+    }
+
+
+def _time_with_system(
+    prob: Mapping[str, Any], travel: Mapping[str, Any], prm: Mapping[str, float]
+) -> tuple[Any, Any]:
     """Paso 2: T_sys con tope en t_base + t_redireccion, y si el tope se activó."""
     e_c, P0 = prob["e_c"], prob["P0"]
-    guided = prm["t_directo_min"] + (e_c / (1 - e_c)) * prm["t_redireccion_min"]
-    t_guided = (1 - P0) * guided + P0 * prm["t_base_min"]
+    guided = travel["t_directo_eff"] + (e_c / (1 - e_c)) * prm["t_redireccion_min"]
+    t_mixed = (1 - P0) * guided + P0 * prm["t_base_min"]
     cap = prm["t_base_min"] + prm["t_redireccion_min"]
-    return np.minimum(t_guided, cap), t_guided > cap
+    return np.minimum(t_mixed, cap), t_mixed > cap
 
 
 def _abandonment(t: Any, prm: Mapping[str, float]) -> Any:
@@ -444,6 +535,20 @@ def _to_native(values: dict[str, Any]) -> dict[str, Any]:
     return native
 
 
+def json_safe(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Copia lista para JSON estricto: NaN/inf → None y arreglos → listas."""
+    def convert(val: Any) -> Any:
+        if isinstance(val, np.ndarray):
+            return convert(val.tolist())
+        if isinstance(val, list):
+            return [convert(v) for v in val]
+        if isinstance(val, float) and not np.isfinite(val):
+            return None
+        return val
+
+    return {k: convert(v) for k, v in values.items()}
+
+
 # ---------------------------------------------------------------------------
 # API pública
 # ---------------------------------------------------------------------------
@@ -459,12 +564,14 @@ def compute_value(rates: Mapping[str, Any], scenario_cfg: Mapping[str, Any]) -> 
     _check_rates(rates)
     prm = scenario_params(scenario_cfg)
     prob = _probabilities(rates, prm)
-    T_sys, capped = _time_with_system(prob, prm)
+    travel = _travel(prob, prm)
+    T_sys, capped = _time_with_system(prob, travel, prm)
     n_amber = _amber_spaces(rates, prm)
     out = {
         "scenario": scenario_cfg["name"],
         "objective_name": scenario_cfg["objective"],
         **prob,
+        **travel,
         "t_sys_capped": capped,
         **_assemble(scenario_cfg, prm, T_sys, n_amber, with_system=True),
     }
@@ -474,7 +581,9 @@ def compute_value(rates: Mapping[str, Any], scenario_cfg: Mapping[str, Any]) -> 
 def status_quo(scenario_cfg: Mapping[str, Any]) -> dict[str, Any]:
     """Valor sin sistema (B0): T_sys = t_base, A = 0 y sin costos → objetivo 0.
 
-    No hay recomendación, así que ``e`` no aplica y se reporta 0; ``P0`` = 1.
+    No hay recomendación, así que ``e``, ``k_vis`` y ``t_directo_eff`` se
+    reportan 0 y ``frac_recorrido`` y ``factor_recorrido`` son NaN (no aplican;
+    ``json_safe`` los convierte a null); ``P0`` = 1.
     """
     prm = scenario_params(scenario_cfg)
     out = {
@@ -485,6 +594,10 @@ def status_quo(scenario_cfg: Mapping[str, Any]) -> dict[str, Any]:
         "e": 0.0,
         "e_c": 0.0,
         "P0": 1.0,
+        "k_vis": 0.0,
+        "frac_recorrido": float("nan"),
+        "factor_recorrido": float("nan"),
+        "t_directo_eff": 0.0,
         "t_sys_capped": False,
         **_assemble(scenario_cfg, prm, float(prm["t_base_min"]), 0.0, with_system=False),
     }

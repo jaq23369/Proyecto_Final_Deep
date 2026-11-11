@@ -36,9 +36,13 @@ params:
     value: 6.0
     source: "Shoup (2006) reporta ~8 min promedio de crucero en zonas congestionadas; ajustado a un parqueo cerrado, reemplazar con medición de campo"
     confidence: literatura
-  t_directo_min:
-    value: 1.0
-    source: "Tiempo de ir directo a un espacio libre indicado; estimado, reemplazar con medición de campo"
+  t_acceso_min:
+    value: 0.85
+    source: "Entrar al parqueo y estacionar, independiente de dónde esté el espacio; estimado, reemplazar con medición de campo"
+    confidence: estimado
+  t_recorrido_total_min:
+    value: 4.0
+    source: "Tiempo de recorrer todos los pasillos del parqueo a velocidad de búsqueda (~10 km/h); medible en campo"
     confidence: estimado
   t_redireccion_min:
     value: 1.5

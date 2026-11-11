@@ -62,17 +62,17 @@ class _ClassScores:
     def rates(self, t_L: np.ndarray, t_H: np.ndarray) -> dict[str, np.ndarray]:
         """Tasas q_* que se difunden entre las formas de ``t_L`` y ``t_H``."""
         n_b, n_f = self.busy.size, self.free.size
-        q_OL = self.below(self.busy, t_L) / n_b
-        q_LL = self.below(self.free, t_L) / n_f
-        q_OO = self.at_or_above(self.busy, t_H) / n_b
-        q_LO = self.at_or_above(self.free, t_H) / n_f
-        q_OV = 1.0 - q_OL - q_OO
-        q_LV = 1.0 - q_LL - q_LO
-        n_verify = q_OV * n_b + q_LV * n_f
+        busy_free = self.below(self.busy, t_L)
+        free_free = self.below(self.free, t_L)
+        busy_busy = self.at_or_above(self.busy, t_H)
+        free_busy = self.at_or_above(self.free, t_H)
+        # Conteos enteros: con t_L == t_H la franja da exactamente 0, sin residuos de redondeo.
+        busy_verify = np.maximum(n_b - busy_free - busy_busy, 0)
+        free_verify = np.maximum(n_f - free_free - free_busy, 0)
         return {
-            "q_OL": q_OL, "q_OV": q_OV, "q_OO": q_OO,
-            "q_LL": q_LL, "q_LV": q_LV, "q_LO": q_LO,
-            "verify_rate": n_verify / (n_b + n_f),
+            "q_OL": busy_free / n_b, "q_OV": busy_verify / n_b, "q_OO": busy_busy / n_b,
+            "q_LL": free_free / n_f, "q_LV": free_verify / n_f, "q_LO": free_busy / n_f,
+            "verify_rate": (busy_verify + free_verify) / (n_b + n_f),
         }
 
 
