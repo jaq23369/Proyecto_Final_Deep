@@ -169,7 +169,46 @@ def test_build_transforms_spec_parameters():
     assert tuple(aff.degrees) == (-5.0, 5.0)
     assert tuple(aff.translate) == (0.05, 0.05) and tuple(aff.scale) == (0.9, 1.1)
     assert ops["RandomApply"].p == pytest.approx(0.2)
-    assert ops["RandomErasing"].p == pytest.approx(0.25)
-    # RandomErasing va después de ToTensor (opera sobre tensores)
+    blur = ops["RandomApply"].transforms[0]
+    assert isinstance(blur, T.GaussianBlur)
+    assert tuple(blur.kernel_size) == (5, 5)
+    assert tuple(blur.sigma) == pytest.approx((0.07, 1.0))
+    erasing = ops["RandomErasing"]
+    assert erasing.p == pytest.approx(0.25)
+    assert tuple(erasing.scale) == (0.02, 0.08) and erasing.value == 0
+
+
+def test_build_transforms_augment_order():
+    """Aumento sobre el patch original (antes del Resize); RandomErasing al final."""
+    tf = build_transforms(224, train=True, augment=True)
     kinds = [type(op).__name__ for op in tf.transforms]
-    assert kinds.index("RandomErasing") > kinds.index("ToTensor")
+    assert kinds == [
+        "ColorJitter", "RandomAffine", "RandomApply", "RandomHorizontalFlip",
+        "Resize", "ToTensor", "Normalize", "RandomErasing",
+    ]
+    resize = kinds.index("Resize")
+    for aug in ("ColorJitter", "RandomAffine", "RandomApply", "RandomHorizontalFlip"):
+        assert kinds.index(aug) < resize
+    assert kinds.index("RandomErasing") > kinds.index("Normalize")
+
+
+@pytest.mark.parametrize("size", [(126, 150), (150, 126), (126, 126), (133, 141), (150, 150)])
+@pytest.mark.parametrize("input_size", [64, 224])
+def test_build_transforms_augment_non_square_inputs(size, input_size):
+    # El aumento corre al tamaño original; la salida siempre es (3, s, s)
+    tf = build_transforms(input_size, train=True, augment=True)
+    img = _random_image("RGB", size, seed=size[0] + size[1])
+    torch.manual_seed(1)
+    for _ in range(4):
+        x = tf(img)
+        assert tuple(x.shape) == (3, input_size, input_size)
+        assert x.dtype == torch.float32 and torch.isfinite(x).all()
+
+
+def test_build_transforms_eval_unchanged_by_augment_flag():
+    # Sin aumento, el pipeline sigue siendo Resize → ToTensor → Normalize
+    img = _random_image("RGB", (126, 150), 9)
+    a = build_transforms(32, train=False, augment=True)(img)
+    b = build_transforms(32, train=True, augment=False)(img)
+    assert torch.equal(a, b)
+    np.testing.assert_allclose(preprocess_numpy(img, 32)[0], a.numpy(), atol=1e-5)
