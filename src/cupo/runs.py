@@ -31,6 +31,7 @@ CHECKPOINT_FILE = "best.pt"
 CLASSICAL_FILE = "model.joblib"
 CALIBRATION_FILE = "calibration.json"
 THRESHOLDS_FILE = "thresholds.json"
+SMOKE_DIRNAME = "_smoke"  # runs con subset < 1: fuera de runs/*/ para no entrar a la tabla
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +55,18 @@ def create_run_dir(run_id: str, runs_root: Path | None = None) -> Path:
         k += 1
     candidate.mkdir(parents=True)
     return candidate.resolve()
+
+
+def choose_runs_root(runs_dir: str | Path | None, subset: float) -> Path:
+    """Carpeta donde se crea el run.
+
+    ``runs_dir`` explícito manda; si no se da, ``runs/`` para corridas completas y
+    ``runs/_smoke/`` cuando ``subset < 1`` (pruebas de humo), así no contaminan la tabla.
+    """
+    if runs_dir is not None:
+        return Path(runs_dir)
+    root = paths.runs_dir()
+    return root / SMOKE_DIRNAME if float(subset) < 1 else root
 
 
 def resolve_run_dir(run: str | Path) -> Path:

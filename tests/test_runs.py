@@ -231,3 +231,47 @@ def test_json_module_rejects_nan_by_default_check():
     """Comprobación del lector estricto usado en las pruebas."""
     with pytest.raises(ValueError):
         json.loads('{"a": NaN}', parse_constant=lambda t: (_ for _ in ()).throw(ValueError(t)))
+
+
+# ---------------------------------------------------------- choose_runs_root
+
+@pytest.fixture
+def fake_runs_root(tmp_path, monkeypatch):
+    """runs/ falso en tmp_path para no escribir en el runs/ del repo."""
+    root = tmp_path / "runs"
+    monkeypatch.setattr(paths, "runs_dir", lambda: root)
+    return root
+
+
+def test_choose_runs_root_full_subset_goes_to_runs(fake_runs_root):
+    assert R.choose_runs_root(None, 1.0) == fake_runs_root
+    assert R.choose_runs_root(None, 1) == fake_runs_root
+
+
+@pytest.mark.parametrize("subset", [0.02, 0.05, 0.5, 0.999])
+def test_choose_runs_root_partial_subset_goes_to_smoke(fake_runs_root, subset):
+    assert R.choose_runs_root(None, subset) == fake_runs_root / "_smoke"
+    assert R.SMOKE_DIRNAME == "_smoke"
+
+
+@pytest.mark.parametrize("subset", [0.02, 1.0])
+def test_choose_runs_root_explicit_dir_is_respected(fake_runs_root, tmp_path, subset):
+    explicit = tmp_path / "otra_carpeta"
+    assert R.choose_runs_root(explicit, subset) == explicit
+    assert R.choose_runs_root(str(explicit), subset) == explicit
+
+
+def test_choose_runs_root_accepts_string_subset(fake_runs_root):
+    assert R.choose_runs_root(None, "0.02") == fake_runs_root / "_smoke"
+
+
+def test_choose_runs_root_does_not_create_folders(fake_runs_root):
+    R.choose_runs_root(None, 0.02)
+    R.choose_runs_root(None, 1.0)
+    assert not fake_runs_root.exists()
+
+
+def test_choose_runs_root_default_is_repo_runs():
+    """Sin monkeypatch apunta a runs/ del repo (solo se calcula la ruta, no se escribe)."""
+    assert R.choose_runs_root(None, 1.0) == paths.repo_root() / "runs"
+    assert R.choose_runs_root(None, 0.02) == paths.repo_root() / "runs" / "_smoke"
