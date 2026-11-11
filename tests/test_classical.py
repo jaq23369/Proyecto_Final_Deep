@@ -235,3 +235,53 @@ def test_b1_smoke_model_reloads_and_predicts(b1_smoke):
     feats = CL.hog_features(paths, run.model["hog"], n_jobs=1)
     p = probs_from_logits(classical_logits(run.model, feats))
     np.testing.assert_allclose(p, preds["p"][:20], atol=1e-6)
+
+
+# ============================================ carpeta del run y subset efectivo
+
+@pytest.fixture
+def captured_classical(tmp_path, monkeypatch):
+    pytest.importorskip("torch")
+    from cupo import paths
+
+    mod = load_train_classical()
+    root = tmp_path / "runs"
+    monkeypatch.setattr(paths, "runs_dir", lambda: root)
+    calls = []
+
+    def fake_run(cfg, run_name=None, runs_root=None):
+        calls.append({"cfg": cfg, "runs_root": runs_root})
+
+    monkeypatch.setattr(mod, "run", fake_run)
+    return mod, root, calls
+
+
+def test_classical_main_cli_subset_goes_to_smoke(captured_classical):
+    mod, root, calls = captured_classical
+    assert mod.main(["--config", str(CONFIGS / "b1_hog_lr.yaml"), "--subset", "0.05"]) == 0
+    assert calls[0]["cfg"]["data"]["subset"] == 0.05
+    assert calls[0]["runs_root"] == root / "_smoke"
+
+
+def test_classical_main_full_goes_to_runs(captured_classical):
+    mod, root, calls = captured_classical
+    assert mod.main(["--config", str(CONFIGS / "b1_hog_lr.yaml")]) == 0
+    assert calls[0]["cfg"]["data"]["subset"] == 1.0
+    assert calls[0]["runs_root"] == root
+
+
+def test_classical_main_yaml_subset_and_explicit_dir(captured_classical, tmp_path):
+    from cupo.runs import load_yaml, save_yaml
+
+    mod, root, calls = captured_classical
+    cfg = load_yaml(CONFIGS / "b1_hog_lr.yaml")
+    cfg["data"]["subset"] = 0.2
+    yaml_path = tmp_path / "b1_sub.yaml"
+    save_yaml(yaml_path, cfg)
+    explicit = tmp_path / "mis_runs"
+    mod.main(["--config", str(yaml_path)])
+    mod.main(["--config", str(yaml_path), "--runs-dir", str(explicit)])
+    mod.main(["--config", str(yaml_path), "--subset", "1.0"])
+    assert calls[0]["cfg"]["data"]["subset"] == 0.2 and calls[0]["runs_root"] == root / "_smoke"
+    assert calls[1]["runs_root"] == explicit
+    assert calls[2]["cfg"]["data"]["subset"] == 1.0 and calls[2]["runs_root"] == root

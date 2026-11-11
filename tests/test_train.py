@@ -352,3 +352,108 @@ def test_same_seed_gives_same_train_loss(smoke_runs):
     pa = load_npz(smoke_runs["a"][0] / "val_preds.npz")["p"]
     pb = load_npz(smoke_runs["b"][0] / "val_preds.npz")["p"]
     np.testing.assert_allclose(pa, pb, atol=1e-4)
+
+
+# ============================================ carpeta del run y subset efectivo
+
+@pytest.fixture
+def captured_training(tmp_path, monkeypatch):
+    """Reemplaza run_training por un registro y apunta runs/ a tmp_path."""
+    root = tmp_path / "runs"
+    monkeypatch.setattr(paths, "runs_dir", lambda: root)
+    calls = []
+
+    def fake_run_training(cfg, run_name=None, runs_root=None):
+        calls.append({"cfg": cfg, "run_name": run_name, "runs_root": runs_root})
+        return Path(runs_root) / (run_name or "x")
+
+    monkeypatch.setattr(T, "run_training", fake_run_training)
+    return root, calls
+
+
+def _yaml_with_subset(tmp_path: Path, subset: float) -> Path:
+    from cupo.runs import save_yaml
+
+    cfg = load_yaml(CONFIGS / "b2_malexnet.yaml")
+    cfg["data"]["subset"] = subset
+    out = tmp_path / f"b2_subset_{subset}.yaml"
+    save_yaml(out, cfg)
+    return out
+
+
+def test_main_cli_subset_goes_to_smoke(captured_training):
+    root, calls = captured_training
+    assert T.main(["--config", str(CONFIGS / "b2_malexnet.yaml"), "--subset", "0.02", "--epochs", "1"]) == 0
+    assert calls[0]["cfg"]["data"]["subset"] == 0.02
+    assert calls[0]["runs_root"] == root / "_smoke"
+
+
+def test_main_full_subset_goes_to_runs(captured_training):
+    root, calls = captured_training
+    assert T.main(["--config", str(CONFIGS / "b2_malexnet.yaml")]) == 0
+    assert calls[0]["cfg"]["data"]["subset"] == 1.0
+    assert calls[0]["runs_root"] == root
+
+
+def test_main_yaml_subset_goes_to_smoke(captured_training, tmp_path):
+    root, calls = captured_training
+    assert T.main(["--config", str(_yaml_with_subset(tmp_path, 0.1))]) == 0
+    assert calls[0]["cfg"]["data"]["subset"] == 0.1
+    assert calls[0]["runs_root"] == root / "_smoke"
+
+
+def test_main_cli_subset_overrides_yaml(captured_training, tmp_path):
+    root, calls = captured_training
+    assert T.main(["--config", str(_yaml_with_subset(tmp_path, 0.1)), "--subset", "1.0"]) == 0
+    assert calls[0]["cfg"]["data"]["subset"] == 1.0
+    assert calls[0]["runs_root"] == root
+
+
+def test_main_explicit_runs_dir_is_respected(captured_training, tmp_path):
+    _, calls = captured_training
+    explicit = tmp_path / "mis_runs"
+    T.main(["--config", str(CONFIGS / "b2_malexnet.yaml"), "--subset", "0.02", "--runs-dir", str(explicit)])
+    T.main(["--config", str(CONFIGS / "b2_malexnet.yaml"), "--runs-dir", str(explicit)])
+    assert [c["runs_root"] for c in calls] == [explicit, explicit]
+
+
+@pytest.mark.data
+@needs_data
+def test_run_training_in_smoke_root_writes_effective_subset(monkeypatch, tmp_path):
+    """Run real diminuto en la carpeta elegida por choose_runs_root (runs/ falso)."""
+    from cupo.runs import choose_runs_root
+
+    monkeypatch.setattr(paths, "runs_dir", lambda: tmp_path / "runs")
+    install_split_recorders(monkeypatch)
+    cfg = tiny_torch_cfg(subset=0.005)
+    root = choose_runs_root(None, cfg["data"]["subset"])
+    run_dir = T.run_training(cfg, run_name="smoke_root", runs_root=root)
+    assert Path(run_dir) == (tmp_path / "runs" / "_smoke" / "smoke_root").resolve()
+    assert load_yaml(run_dir / "config.yaml")["data"]["subset"] == 0.005
+    assert load_strict_json(run_dir / "summary.json")["subset"] == 0.005
+
+
+# ===================================================================== K6
+
+def test_k6_config_resolves_and_builds():
+    from cupo.models import build_model, count_params
+
+    k6 = T.resolve_config(CONFIGS / "k6_mnv3_ft_seeds.yaml")
+    k3 = T.resolve_config(CONFIGS / "k3_mnv3_ft.yaml")
+    assert k6["name"] == "k6_mnv3_ft_seeds"
+    for section in ("model", "data", "optim", "loss", "train", "select", "eval"):
+        assert k6[section] == k3[section], section
+    m = k6["model"]
+    model = build_model(m["name"], pretrained=False, freeze=m["freeze"],
+                        input_size=int(k6["data"]["input_size"]))
+    total, trainable = count_params(model)
+    assert total == trainable > 0
+    with torch.no_grad():
+        assert model.eval()(torch.randn(2, 3, 224, 224)).shape == (2, 2)
+
+
+def test_k6_seed_override():
+    args = T.parse_args(["--config", str(CONFIGS / "k6_mnv3_ft_seeds.yaml"), "--seed", "43"])
+    cfg = T.resolve_config(args.config, T.cli_overrides(args))
+    assert cfg["train"]["seed"] == 43
+    assert cfg["data"]["subset"] == 1.0

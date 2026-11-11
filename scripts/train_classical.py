@@ -33,7 +33,9 @@ from cupo.evaluate import (
 )
 from cupo.metrics import binary_metrics
 from cupo.classical import HOG_DEFAULTS, hog_features
-from cupo.runs import create_run_dir, deep_merge, load_yaml, make_run_id, save_json, save_yaml
+from cupo.runs import (
+    choose_runs_root, create_run_dir, deep_merge, load_yaml, make_run_id, save_json, save_yaml,
+)
 from cupo.thresholds import optimize
 from cupo.train import build_summary, load_data, train_cost
 from cupo.utils import env_info, set_seed
@@ -189,7 +191,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--subset", type=float, default=None, help="fracción de train y val (humo)")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--run-name", default=None, help="nombre de la carpeta del run (reemplaza el run_id)")
-    parser.add_argument("--runs-dir", default=None, help=f"carpeta de runs (por defecto {paths.runs_dir()})")
+    parser.add_argument("--runs-dir", default=None,
+                        help=f"carpeta de runs (por defecto {paths.runs_dir()}; con --subset < 1, runs/_smoke)")
     parser.add_argument("--n-boot", type=int, default=None)
     return parser.parse_args(argv)
 
@@ -205,7 +208,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.n_boot is not None:
         over["eval"] = {"n_boot": args.n_boot}
     cfg = deep_merge(cfg, over)
-    run(cfg, run_name=args.run_name, runs_root=Path(args.runs_dir) if args.runs_dir else None)
+    runs_root = choose_runs_root(args.runs_dir, cfg["data"]["subset"])
+    if args.runs_dir is None and float(cfg["data"]["subset"]) < 1:
+        print(f"subset={cfg['data']['subset']} < 1: prueba de humo, el run se guarda en {runs_root}")
+    run(cfg, run_name=args.run_name, runs_root=runs_root)
     return 0
 
 

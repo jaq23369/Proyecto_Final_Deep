@@ -1,0 +1,16 @@
+# K6: la mejor candidata prevista (K3) con 3 semillas + calibración por temperatura.
+# Uso (una corrida por semilla y luego calibrar cada run en val):
+#   python -m cupo.train --config configs/k6_mnv3_ft_seeds.yaml --seed 42
+#   python -m cupo.train --config configs/k6_mnv3_ft_seeds.yaml --seed 43
+#   python -m cupo.train --config configs/k6_mnv3_ft_seeds.yaml --seed 44
+#   python -m cupo.calibrate --run runs/<run_id>     # para cada uno de los 3 runs
+# Si al final la mejor candidata no es K3, copiar aquí su model/optim/loss.
+name: k6_mnv3_ft_seeds
+notes: "K3 con 3 semillas (42, 43, 44) + calibración por temperatura; incertidumbre entre semillas"
+model: {name: mobilenet_v3_small, pretrained: true, freeze: none}
+data: {input_size: 224, augment: true, batch_size: 128, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 3.0e-4, weight_decay: 1.0e-4, scheduler: cosine, warmup_epochs: 1}
+loss: {label_smoothing: 0.0, cost_weight_busy: 1.0}
+train: {epochs: 10, early_stopping_patience: 3, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}
