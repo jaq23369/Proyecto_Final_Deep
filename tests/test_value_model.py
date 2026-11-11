@@ -68,6 +68,7 @@ def test_default_values_match_spec(com, uvg):
         "fraccion_tiempo_operador": 0.5, "operadores_incluidos": 1, "salario_operador_Q_h": 25,
         "n_camaras": 9, "costo_camara_Q": 1500, "costo_servidor_mes_Q": 400, "meses_amortizacion": 36,
         "costo_sensor_instalado_Q": 770, "mantenimiento_sensores_mes_Q": 300,
+        "precision_verificacion": 0.95,
     }
     for k, v in expected_common.items():
         assert c[k] == pytest.approx(v), k
@@ -185,8 +186,45 @@ def test_commercial_hand_case(com):
     json.dumps(r)
 
 
-def test_uvg_hand_case_with_verify_band(uvg):
+def _uvg_band_case(a):
+    """Caso UVG con franja (q_OL=.02, q_OV=.03, q_LL=.95, q_LV=.02) calculado a mano."""
+    vt = 0.8 * 15 + 0.2 * 45  # 21 Q/h
+    F = 16  # round(0.1·164 = 16.4)
+    q_eff = 0.95 + a * 0.02
+    q_OL_eff = 0.02 + (1 - a) * 0.03
+    e = 0.9 * q_OL_eff / (0.9 * q_OL_eff + 0.1 * q_eff)
+    P0 = (1 - q_eff) ** F
+    frac = binomial_travel_fraction(q_eff, F)
+    t_direct = min(0.85 + 4.0 * frac, 7.0)
+    T = (1 - P0) * (t_direct + e / (1 - e) * 1.5) + P0 * 7.0
+    hours = 900 * 90 * (7.0 - T) / 60
+    n_amber = 164 * (0.9 * 0.03 + 0.1 * 0.02)  # 4.756
+    extra = max(0.0, n_amber * 30 * 10 / 3600 - 0.5)  # 0 (0.396 < 0.5)
+    costs = (9 * 1500 / 36 + 400) * 4.5 + 164 * 120 * 14 * 90 / 1000 * 0.02 + extra * 25 * 14 * 90
+    return {"q_LL_eff": q_eff, "q_OL_eff": q_OL_eff, "e": e, "T": T, "hours": hours,
+            "value": hours * vt - costs}
+
+
+def test_uvg_hand_case_with_verify_band_a095(uvg):
+    assert uvg["params"]["precision_verificacion"] == 0.95
     r = vm.compute_value(make_rates(0.02, 0.03, 0.95, 0.02), uvg)
+    ref = _uvg_band_case(0.95)
+    # q_LL_eff = 0.95 + 0.95·0.02 = 0.969 ; q_OL_eff = 0.02 + 0.05·0.03 = 0.0215
+    assert r["q_LL_eff"] == pytest.approx(0.969)
+    assert r["q_OL_eff"] == pytest.approx(0.0215)
+    assert r["e"] == pytest.approx(ref["e"])
+    assert r["e"] == pytest.approx(0.166452, abs=1e-6)
+    assert r["T_sys"] == pytest.approx(ref["T"])
+    assert r["T_sys"] == pytest.approx(1.392357, abs=1e-6)
+    assert r["horas_ahorradas_semestre"] == pytest.approx(ref["hours"])
+    assert r["valor_neto_semestre_Q"] == pytest.approx(ref["value"])
+    assert r["valor_neto_semestre_Q"] == pytest.approx(154993.24, abs=0.01)
+
+
+def test_uvg_hand_case_with_verify_band(uvg):
+    # Con a = 1 (verificación perfecta) se reproduce la fórmula previa: q_LL_eff = q_LL + q_LV.
+    r = vm.compute_value(make_rates(0.02, 0.03, 0.95, 0.02),
+                         vm.with_param(uvg, "precision_verificacion", 1.0))
     vt = 0.8 * 15 + 0.2 * 45  # 21 Q/h
     F = 16  # round(0.1·164 = 16.4)
     q_eff = 0.97
@@ -214,8 +252,10 @@ def test_uvg_hand_case_with_verify_band(uvg):
 
 
 def test_q_LL_eff_includes_verified_free(com):
+    com = vm.with_param(com, "precision_verificacion", 1.0)
     r = vm.compute_value(make_rates(0.02, 0.05, 0.90, 0.07), com)
     assert r["q_LL_eff"] == pytest.approx(0.97)
+    assert r["q_OL_eff"] == pytest.approx(0.02)
     # Mismo e y P0 que un clasificador con q_LL = 0.97 sin franja (q_OL no cambia).
     ref = vm.compute_value(make_rates(0.02, 0.0, 0.97, 0.0), com)
     assert r["e"] == pytest.approx(ref["e"])
@@ -445,15 +485,21 @@ def test_limit_q_to_zero(F):
         assert f == pytest.approx(0.5 - (F - 1) * q / 12, abs=1e-6)  # desarrollo de primer orden
 
 
-@pytest.mark.xfail(reason="travel_fraction pierde precisión por cancelación en E − P0 "
-                          "cuando 1 − P0 apenas supera 1e-12 (q ~ 1e-13): devuelve > 1/2",
-                   strict=False)
 @pytest.mark.parametrize("F", [16, 25])
 def test_travel_fraction_precision_near_cutoff(F):
     for q in (1e-13, 1e-12, 1e-11):
         f = float(vm.travel_fraction(q, F))
         assert f <= 0.5
         assert f == pytest.approx(exact_travel_fraction(q, F), abs=1e-6)
+
+
+@pytest.mark.parametrize("F", [1, 16, 25, 164])
+def test_travel_fraction_precision_sweep(F):
+    # Barrido de q pequeño alrededor del corte de 1 − P0: error < 1e-6 frente a la referencia exacta.
+    for q in np.logspace(-13, -5, 41):
+        f = float(vm.travel_fraction(q, F))
+        assert f <= 0.5 + 1e-6
+        assert f == pytest.approx(exact_travel_fraction(float(q), F), abs=1e-6)
 
 
 def test_travel_fraction_q_one():
@@ -545,3 +591,89 @@ def test_compute_value_json_safe_strict(scenario, request, good_scores):
 def test_json_safe_converts_nonfinite():
     out = vm.json_safe({"a": float("nan"), "b": float("inf"), "c": np.array([1.0, np.nan]), "d": "x", "e": 2})
     assert out == {"a": None, "b": None, "c": [1.0, None], "d": "x", "e": 2}
+
+
+
+# ---------------------------------------------------------------------------
+# Precisión de la verificación (a = precision_verificacion)
+# ---------------------------------------------------------------------------
+
+def test_commercial_hand_case_a095(com):
+    a = com["params"]["precision_verificacion"]
+    assert a == 0.95
+    r = vm.compute_value(make_rates(0.02, 0.04, 0.90, 0.06), com)
+    q_OL_eff = 0.02 + (1 - a) * 0.04  # 0.022
+    q_LL_eff = 0.90 + a * 0.06  # 0.957
+    e = 0.85 * q_OL_eff / (0.85 * q_OL_eff + 0.15 * q_LL_eff)  # 0.0187 / 0.16225
+    F = 25
+    P0 = (1 - q_LL_eff) ** F
+    frac = binomial_travel_fraction(q_LL_eff, F)
+    t_direct = min(0.85 + 4.0 * frac, 6.0)
+    T = (1 - P0) * (t_direct + e / (1 - e) * 1.5) + P0 * 6.0
+    n_amber = 164 * (0.85 * 0.04 + 0.15 * 0.06)  # 7.052
+    extra = n_amber * 30 * 10 / 3600 - 0.5  # 0.087667
+    income = 1100 * 30 * (0.08 - 0.08 * T / 6.0) * 25
+    costs = 775.0 + 165.312 + extra * 25 * 14 * 30
+    assert r["q_OL_eff"] == pytest.approx(0.022)
+    assert r["q_LL_eff"] == pytest.approx(0.957)
+    assert r["e"] == pytest.approx(e, abs=1e-12)
+    assert r["e"] == pytest.approx(0.115254, abs=1e-6)
+    assert r["frac_recorrido"] == pytest.approx(frac, rel=1e-10)
+    assert r["T_sys"] == pytest.approx(T)
+    assert r["n_amber"] == pytest.approx(7.052)
+    assert r["operadores_extra"] == pytest.approx(extra)
+    assert r["costo_verif_mes"] == pytest.approx(extra * 25 * 14 * 30)
+    assert r["valor_operador_mes"] == pytest.approx(income - costs)
+
+
+def _legacy_value(rates, cfg):
+    """Fórmula previa (verificación perfecta) calculada aparte: q_LL_eff = q_LL + q_LV, q_OL sin cambio."""
+    prm = cfg["params"]
+    pi, N = prm["ocupacion"], prm["espacios"]
+    F = max(1, int(math.floor((1 - pi) * N + 0.5)))
+    q_LL_eff = rates["q_LL"] + rates["q_LV"]
+    q_OL = rates["q_OL"]
+    den = pi * q_OL + (1 - pi) * q_LL_eff
+    e = pi * q_OL / den if den > 0 else 1.0
+    e_c = min(e, 0.95)
+    P0 = (1 - q_LL_eff) ** F
+    frac = binomial_travel_fraction(q_LL_eff, F) if q_LL_eff > 0 else 0.5
+    t_direct = min(prm["t_acceso_min"] + prm["t_recorrido_total_min"] * frac, prm["t_base_min"])
+    T = (1 - P0) * (t_direct + e_c / (1 - e_c) * prm["t_redireccion_min"]) + P0 * prm["t_base_min"]
+    return {"e": e, "P0": P0, "T_sys": min(T, prm["t_base_min"] + prm["t_redireccion_min"])}
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+@pytest.mark.parametrize("rates", [(0.02, 0.03, 0.95, 0.02), (0.0, 0.2, 0.5, 0.3),
+                                   (0.05, 0.10, 0.70, 0.15), (0.3, 0.2, 0.3, 0.2)])
+def test_a_equal_one_reproduces_previous_formula(scenario, rates, request):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    cfg1 = vm.with_param(cfg, "precision_verificacion", 1.0)
+    rr = make_rates(*rates)
+    r = vm.compute_value(rr, cfg1)
+    legacy = _legacy_value(rr, cfg1)
+    assert r["q_OL_eff"] == pytest.approx(rr["q_OL"])
+    assert r["q_LL_eff"] == pytest.approx(rr["q_LL"] + rr["q_LV"])
+    for k in ("e", "P0", "T_sys"):
+        assert r[k] == pytest.approx(legacy[k], rel=1e-10, abs=1e-14), k
+    # Sin franja (q_OV = q_LV = 0) el valor de a no importa.
+    nb = make_rates(rates[0], 0.0, rates[2], 0.0)
+    assert vm.compute_value(nb, cfg1)["objective"] == pytest.approx(vm.compute_value(nb, cfg)["objective"])
+
+
+@pytest.mark.parametrize("scenario", ["comercial", "uvg"])
+@pytest.mark.parametrize("rates", [(0.02, 0.03, 0.95, 0.02), (0.0, 0.2, 0.5, 0.3), (0.05, 0.10, 0.70, 0.15)])
+def test_lower_verification_precision_does_not_raise_value(scenario, rates, request):
+    cfg = request.getfixturevalue("com" if scenario == "comercial" else "uvg")
+    rr = make_rates(*rates)
+    values = [vm.compute_value(rr, vm.with_param(cfg, "precision_verificacion", a))["objective"]
+              for a in (1.0, 0.99, 0.95, 0.9, 0.8, 0.6, 0.5)]
+    assert all(b <= a + 1e-9 * max(1.0, abs(a)) for a, b in zip(values, values[1:])), values
+    assert values[-1] < values[0]
+
+
+def test_precision_verificacion_clipped_in_sensitivity(com):
+    df = vm.sensitivity(make_rates(0.02, 0.03, 0.95, 0.02), com, params=["precision_verificacion"])
+    row = df.set_index("factor")
+    assert row.loc[1.2, "param_value"] == 1.0 and bool(row.loc[1.2, "clipped"])
+    assert row.loc[0.8, "param_value"] == pytest.approx(0.76) and not bool(row.loc[0.8, "clipped"])

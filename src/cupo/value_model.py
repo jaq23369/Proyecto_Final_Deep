@@ -17,12 +17,19 @@ proporción de clases del conjunto de validación.
 
 Franja "por verificar"
 ----------------------
-Los espacios en amarillo los revisa un operador en la cámara. Tras la revisión,
-los libres verificados pasan a verde y los ocupados verificados pasan a rojo.
-Por eso, para el conductor, la tasa efectiva de libres mostrados en verde es
-``q_LL_eff = q_LL + q_LV``, mientras que ``q_OL`` no cambia (la verificación
-nunca convierte un ocupado en verde). El precio de ese beneficio es el costo
-de revisión de la franja.
+Los espacios en amarillo los revisa un operador en la cámara. La revisión
+acierta con probabilidad ``a = precision_verificacion``: los libres bien
+verificados pasan a verde y los ocupados bien verificados a rojo; con
+probabilidad ``1 − a`` el operador se equivoca (los casos en amarillo son los
+más ambiguos: sombras, oclusión). Para el conductor, las tasas efectivas de
+verde son
+
+    q_LL_eff = q_LL + a·q_LV          libres que terminan en verde
+    q_OL_eff = q_OL + (1 − a)·q_OV    ocupados que terminan en verde (error caro)
+
+y son las que entran en ``e``, ``P0`` y el recorrido. Con ``a = 1`` la
+verificación es perfecta (``q_OL_eff = q_OL``). El precio de la franja es el
+costo de revisión.
 
 Capacidad oculta y recorrido
 ----------------------------
@@ -61,15 +68,29 @@ Limitaciones conocidas
 1. Con ocupación alta (π ≈ 0.85-0.90, F ≈ 16-25), ``P0`` ≈ 0 aunque se oculten
    muchos libres; la capacidad oculta solo pesa a través del recorrido, que
    supone libres repartidos uniformemente y un recorrido lineal.
-2. La verificación se supone perfecta e inmediata: los libres verificados pasan
-   a verde y los ocupados verificados a rojo, sin errores del operador.
+2. La verificación se supone inmediata, con una precisión fija ``a`` igual para
+   libres y ocupados.
+3. Competencia entre conductores: con ~1.3 llegadas/min, refresco de 30 s y
+   pocos verdes, varios conductores pueden ir al mismo espacio y el ``e``
+   efectivo sube. No se modela.
+4. El personal extra se modela como continuo (tiempo parcial fraccionario), no
+   por turnos completos.
+5. Los umbrales óptimos pueden caer en las colas (p. ej. 0.02-0.10) y dependen
+   de la calibración del modelo. La validación no tiene lluvia, así que test se
+   reporta por clima y OOD, siempre con los umbrales elegidos en validación.
+6. La verificación tiende a llenar la capacidad gratuita del encargado
+   (``n_amber`` ≈ 6 espacios con los valores por defecto). Para separar el
+   aporte del modelo del trabajo humano se reporta también el valor sin franja
+   (2 estados) y ``operadores_extra``.
 
 Paso 1: probabilidades
 ----------------------
     N, π     = espacios, ocupacion
     F        = max(1, round((1 − π)·N))            espacios realmente libres (redondeo .5 hacia arriba)
-    q_LL_eff = q_LL + q_LV                          libres en verde después de verificar
-    e        = π·q_OL / (π·q_OL + (1 − π)·q_LL_eff) P(un "libre" mostrado esté ocupado); si el denominador es 0, e = 1
+    a        = precision_verificacion
+    q_LL_eff = q_LL + a·q_LV                        libres en verde después de verificar
+    q_OL_eff = q_OL + (1 − a)·q_OV                  ocupados en verde después de verificar
+    e        = π·q_OL_eff / (π·q_OL_eff + (1 − π)·q_LL_eff)   P(un verde esté ocupado); si el denominador es 0, e = 1
     e_c      = min(e, 0.95)                        tope numérico
     P0       = (1 − q_LL_eff)^F                    ningún libre real se muestra en verde → se busca como hoy
     k_vis    = F · q_LL_eff                         libres visibles en verde esperados (informativo)
@@ -176,6 +197,7 @@ _PROB_BOUNDS: dict[str, tuple[float, float]] = {
     "abandono_base": (0.0, 1.0),
     "frac_personal": (0.0, 1.0),
     "fraccion_tiempo_operador": (0.0, 1.0),
+    "precision_verificacion": (0.0, 1.0),
 }
 
 _REQUIRED_PARAMS = (
@@ -184,7 +206,7 @@ _REQUIRED_PARAMS = (
     "n_camaras", "costo_camara_Q", "costo_servidor_mes_Q", "meses_amortizacion",
     "costo_sensor_instalado_Q", "mantenimiento_sensores_mes_Q",
     "segundos_por_revision", "revisiones_por_hora_amber", "fraccion_tiempo_operador",
-    "operadores_incluidos", "salario_operador_Q_h",
+    "operadores_incluidos", "salario_operador_Q_h", "precision_verificacion",
 )
 
 
@@ -352,17 +374,19 @@ def _check_rates(rates: Mapping[str, Any]) -> None:
 
 
 def _probabilities(rates: Mapping[str, Any], prm: Mapping[str, float]) -> dict[str, Any]:
-    """Paso 1: F, q_LL_eff, e, e_c y P0 (los libres verificados pasan a verde)."""
+    """Paso 1: F, tasas efectivas tras verificar, e, e_c y P0."""
     pi = prm["ocupacion"]
-    q_OL = np.asarray(rates["q_OL"], dtype=float)
-    q_LL_eff = np.asarray(rates["q_LL"], dtype=float) + np.asarray(rates["q_LV"], dtype=float)
-    num = pi * q_OL
+    a = prm["precision_verificacion"]
+    q_OL_eff = np.asarray(rates["q_OL"], dtype=float) + (1 - a) * np.asarray(rates["q_OV"], dtype=float)
+    q_LL_eff = np.asarray(rates["q_LL"], dtype=float) + a * np.asarray(rates["q_LV"], dtype=float)
+    num = pi * q_OL_eff
     den = num + (1 - pi) * q_LL_eff
     with np.errstate(divide="ignore", invalid="ignore"):
         e = np.where(den > 0, num / np.where(den > 0, den, 1.0), 1.0)
     F = free_spaces(prm)
     return {
         "F": F,
+        "q_OL_eff": q_OL_eff,
         "q_LL_eff": q_LL_eff,
         "e": e,
         "e_c": np.minimum(e, E_CAP),
@@ -590,6 +614,7 @@ def status_quo(scenario_cfg: Mapping[str, Any]) -> dict[str, Any]:
         "scenario": scenario_cfg["name"],
         "objective_name": scenario_cfg["objective"],
         "F": free_spaces(prm),
+        "q_OL_eff": 0.0,
         "q_LL_eff": 0.0,
         "e": 0.0,
         "e_c": 0.0,
@@ -688,7 +713,7 @@ def sensitivity(
 def value_curve(y: Any, p: Any, scenario_cfg: Mapping[str, Any], grid_step: float = 0.01) -> dict[str, pd.DataFrame]:
     """Curvas de valor de un modelo.
 
-    - ``by_t_H``: valor en función de ``t_H`` con el ``t_L`` óptimo para cada
+    - ``by_t_H``: valor en función de ``t_H`` ∈ [0, 1] con el ``t_L`` óptimo (``t_L ≤ t_H``) para cada
       ``t_H``, junto con q_OL, q_LO y la tasa de verificación en ese punto.
     - ``single_threshold``: decisión de dos estados (``t_L = t_H = t``); valor
       frente a ``t`` junto con accuracy, F1 macro y la tasa ocupado→libre, para
