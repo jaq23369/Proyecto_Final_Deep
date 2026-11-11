@@ -1,0 +1,28 @@
+# Datos (se descargan con scripts/download_data.py; por defecto en ../Data)
+Data/
+data/
+
+# Corridas, checkpoints y modelos pesados
+runs/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+models/*
+!models/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

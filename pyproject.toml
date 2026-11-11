@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cupo"
+version = "0.1.0"
+description = "Cupo Seguro: clasificación de espacios de parqueo (libre, ocupado, por verificar) y su valor de negocio."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Joel Jaquez" },
+    { name = "Kevin Villagran" },
+]
+# Las dependencias completas están en requirements.txt; torch y torchvision se
+# instalan aparte con el índice de CUDA (ver README).
+dependencies = []
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
