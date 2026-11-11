@@ -1,0 +1,151 @@
+{
+  "sizes": {
+    "train": {
+      "n": 94493,
+      "busy_pct": 50.39
+    },
+    "val": {
+      "n": 18647,
+      "busy_pct": 71.94
+    },
+    "test": {
+      "n": 31825,
+      "busy_pct": 57.43
+    },
+    "ood": {
+      "n": 12584,
+      "busy_pct": 66.77
+    }
+  },
+  "val_rainy": 0,
+  "ood_weathers": [
+    "SUNNY"
+  ],
+  "date_overlap_total": 0,
+  "shortcuts_val": {
+    "espacio": {
+      "AUC val": 0.622,
+      "accuracy val (umbral 0.5)": 55.28
+    },
+    "hora": {
+      "AUC val": 0.876,
+      "accuracy val (umbral 0.5)": 84.384
+    },
+    "cámara": {
+      "AUC val": 0.548,
+      "accuracy val (umbral 0.5)": 48.721
+    },
+    "espacio + hora": {
+      "AUC val": 0.892,
+      "accuracy val (umbral 0.5)": 84.325
+    },
+    "siempre 'ocupado' (mayoritaria de train)": {
+      "AUC val": 0.5,
+      "accuracy val (umbral 0.5)": 71.942
+    }
+  },
+  "slot_extremes": {
+    "train": {
+      "espacios (n≥20)": 164,
+      "ocupados ≥95%": 1,
+      "libres ≥95%": 1,
+      "% patches (umbral 95%)": 0.9418687098515234,
+      "ocupados ≥80%": 2,
+      "libres ≥80%": 2,
+      "% patches (umbral 80%)": 1.8837374197030468
+    },
+    "val": {
+      "espacios (n≥20)": 164,
+      "ocupados ≥95%": 6,
+      "libres ≥95%": 0,
+      "% patches (umbral 95%)": 2.8261918807314848,
+      "ocupados ≥80%": 45,
+      "libres ≥80%": 1,
+      "% patches (umbral 80%)": 25.891564326701346
+    },
+    "test": {
+      "espacios (n≥20)": 164,
+      "ocupados ≥95%": 0,
+      "libres ≥95%": 1,
+      "% patches (umbral 95%)": 0.31421838177533384,
+      "ocupados ≥80%": 6,
+      "libres ≥80%": 2,
+      "% patches (umbral 80%)": 4.370777690494894
+    },
+    "ood": {
+      "espacios (n≥20)": 53,
+      "ocupados ≥95%": 1,
+      "libres ≥95%": 0,
+      "% patches (umbral 95%)": 1.9230769230769231,
+      "ocupados ≥80%": 13,
+      "libres ≥80%": 0,
+      "% patches (umbral 80%)": 25.0
+    }
+  },
+  "slot_rate_corr_train_val": 0.762,
+  "image_flags": {
+    "train": {
+      "muestra": 3000,
+      "muy oscuras (<40)": 39,
+      "casi negras (<10)": 16,
+      "sobreexpuestas (>200)": 1,
+      "atípicas en brillo (z robusto > 3.5)": 36,
+      "% ocupado entre las oscuras": 33.33333333333333
+    },
+    "val": {
+      "muestra": 3000,
+      "muy oscuras (<40)": 39,
+      "casi negras (<10)": 2,
+      "sobreexpuestas (>200)": 5,
+      "atípicas en brillo (z robusto > 3.5)": 5,
+      "% ocupado entre las oscuras": 51.28205128205128
+    },
+    "test": {
+      "muestra": 3000,
+      "muy oscuras (<40)": 16,
+      "casi negras (<10)": 0,
+      "sobreexpuestas (>200)": 1,
+      "atípicas en brillo (z robusto > 3.5)": 6,
+      "% ocupado entre las oscuras": 18.75
+    },
+    "ood": {
+      "muestra": 3000,
+      "muy oscuras (<40)": 0,
+      "casi negras (<10)": 0,
+      "sobreexpuestas (>200)": 6,
+      "atípicas en brillo (z robusto > 3.5)": 5,
+      "% ocupado entre las oscuras": NaN
+    }
+  },
+  "dark_busy_pct": 38.3,
+  "black_in_sample": 18,
+  "black_busy_in_sample": 7,
+  "image_cue_auc_val": {
+    "contraste": 0.955,
+    "brillo": 0.44
+  },
+  "image_cue_auc_val_sym": {
+    "contraste": 0.955,
+    "brillo": 0.56
+  },
+  "dark_profile": "37 % de 7-8h y 55 % de 16h en adelante",
+  "corrupt_in_sample": 0,
+  "non_150_in_sample": 322,
+  "dup_train_test_sample": 0,
+  "dup_train_test_full": 1,
+  "dup_full_files": 38,
+  "dup_full_busy": 3,
+  "dup_full_contradictory": 1,
+  "labels_nulls": 0,
+  "csv_used_nulls": 0,
+  "csv_unused_nulls": {
+    "occupant_changed": 69931
+  },
+  "label_mismatch": 26,
+  "label_mismatch_pct": 0.018,
+  "labels_missing_in_csv": 0,
+  "time_range": [
+    "07:00",
+    "18:12"
+  ]
+}
