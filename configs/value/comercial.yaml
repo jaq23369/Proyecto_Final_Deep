@@ -1,0 +1,102 @@
+# Escenario 1: parqueo comercial de pago. Valor en Q/mes para el operador.
+# Cada parámetro: {value, source, confidence}; confidence ∈ {medido, literatura, estimado}.
+# Los valores 'estimado' se reemplazan con las mediciones de campo.
+# costo_por_1000_pred_Q tiene su valor por defecto en configs/costs.yaml; se puede sobrescribir aquí.
+name: comercial
+description: Parqueo comercial de pago; valor para el operador en Q por mes.
+periodo: mes
+objective: valor_operador_mes
+
+params:
+  espacios:
+    value: 164
+    source: "Igual al número de espacios únicos de CNR-EXT; reemplazar con el parqueo real"
+    confidence: estimado
+  ocupacion:
+    value: 0.85
+    source: "Ocupación en hora pico; estimado, reemplazar con conteo de campo"
+    confidence: estimado
+  llegadas_dia:
+    value: 1100
+    source: "Aproximadamente 6.7 rotaciones por espacio al día; estimado, reemplazar con conteo de campo"
+    confidence: estimado
+  dias_mes:
+    value: 30
+    source: "Operación todos los días del mes"
+    confidence: estimado
+  horas_operacion_dia:
+    value: 14
+    source: "Horario típico de centro comercial; estimado"
+    confidence: estimado
+  refresh_s:
+    value: 30
+    source: "Un frame por cámara cada 30 s (decisión de diseño)"
+    confidence: estimado
+  t_base_min:
+    value: 6.0
+    source: "Shoup (2006) reporta ~8 min promedio de crucero en zonas congestionadas; ajustado a un parqueo cerrado, reemplazar con medición de campo"
+    confidence: literatura
+  t_directo_min:
+    value: 1.0
+    source: "Tiempo de ir directo a un espacio libre indicado; estimado, reemplazar con medición de campo"
+    confidence: estimado
+  t_redireccion_min:
+    value: 1.5
+    source: "Tiempo extra al encontrar ocupado un espacio indicado como libre; estimado, reemplazar con medición de campo"
+    confidence: estimado
+  abandono_base:
+    value: 0.08
+    source: "Supuesto crítico (estimado): forma lineal p_ab ∝ tiempo de búsqueda. Domina el valor absoluto en Q, no el ranking de modelos; se reemplaza con encuesta y medición de campo."
+    confidence: estimado
+  ingreso_por_visita_Q:
+    value: 25
+    source: "Tarifa de ~Q12.5/h por 2 h de estancia promedio; estimado"
+    confidence: estimado
+  valor_tiempo_Q_h:
+    value: 25
+    source: "Valor del tiempo del conductor; estimado"
+    confidence: estimado
+  segundos_por_revision:
+    value: 10
+    source: "Tiempo para revisar un espacio en la cámara; medir en campo"
+    confidence: estimado
+  revisiones_por_hora_amber:
+    value: 30
+    source: "Cada espacio en amarillo se re-revisa ~cada 2 min para que el estado siga vigente"
+    confidence: estimado
+  fraccion_tiempo_operador:
+    value: 0.5
+    source: "Fracción del tiempo del encargado actual disponible para verificar"
+    confidence: estimado
+  operadores_incluidos:
+    value: 1
+    source: "Encargado/guardia que ya existe; su costo no es incremental"
+    confidence: estimado
+  salario_operador_Q_h:
+    value: 25
+    source: "Costo por hora de un operador adicional con prestaciones"
+    confidence: estimado
+  n_camaras:
+    value: 9
+    source: "Igual al número de cámaras de CNR-EXT"
+    confidence: estimado
+  costo_camara_Q:
+    value: 1500
+    source: "Cámara IP exterior con instalación; estimado, reemplazar con cotización"
+    confidence: estimado
+  costo_servidor_mes_Q:
+    value: 400
+    source: "Servidor CPU pequeño o en la nube; estimado, reemplazar con cotización"
+    confidence: estimado
+  meses_amortizacion:
+    value: 36
+    source: "Vida útil de 3 años para el equipo; estimado"
+    confidence: estimado
+  costo_sensor_instalado_Q:
+    value: 770
+    source: "~USD 100 por espacio (sensor + instalación); estimado, reemplazar con cotización"
+    confidence: estimado
+  mantenimiento_sensores_mes_Q:
+    value: 300
+    source: "Mantenimiento mensual de la red de sensores; estimado"
+    confidence: estimado

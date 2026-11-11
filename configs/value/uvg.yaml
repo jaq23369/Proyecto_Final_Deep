@@ -1,0 +1,114 @@
+# Escenario 2: parqueo UVG. Valor en horas ahorradas y Q equivalentes por semestre.
+# Cada parámetro: {value, source, confidence}; confidence ∈ {medido, literatura, estimado}.
+# Los valores 'estimado' se reemplazan con las mediciones de campo.
+# costo_por_1000_pred_Q tiene su valor por defecto en configs/costs.yaml; se puede sobrescribir aquí.
+name: uvg
+description: Parqueo universitario UVG; horas ahorradas y su equivalente en Q por semestre.
+periodo: semestre
+objective: valor_neto_semestre_Q
+
+params:
+  espacios:
+    value: 164
+    source: "Igual al número de espacios únicos de CNR-EXT; reemplazar con el parqueo real"
+    confidence: estimado
+  ocupacion:
+    value: 0.90
+    source: "Ocupación en hora pico de clases; estimado, reemplazar con conteo de campo"
+    confidence: estimado
+  llegadas_dia:
+    value: 900
+    source: "Llegadas diarias de estudiantes y personal; estimado, reemplazar con conteo de campo"
+    confidence: estimado
+  dias_semestre:
+    value: 90
+    source: "Días de clase por semestre; estimado"
+    confidence: estimado
+  meses_semestre:
+    value: 4.5
+    source: "Meses calendario en que corre la infraestructura (~18 semanas); estimado"
+    confidence: estimado
+  horas_operacion_dia:
+    value: 14
+    source: "Horario de operación del campus; estimado"
+    confidence: estimado
+  refresh_s:
+    value: 30
+    source: "Un frame por cámara cada 30 s (decisión de diseño)"
+    confidence: estimado
+  t_base_min:
+    value: 7.0
+    source: "Shoup (2006) reporta ~8 min promedio de crucero en zonas congestionadas; ajustado al campus, reemplazar con medición de campo"
+    confidence: literatura
+  t_directo_min:
+    value: 1.0
+    source: "Tiempo de ir directo a un espacio libre indicado; estimado, reemplazar con medición de campo"
+    confidence: estimado
+  t_redireccion_min:
+    value: 1.5
+    source: "Tiempo extra al encontrar ocupado un espacio indicado como libre; estimado, reemplazar con medición de campo"
+    confidence: estimado
+  abandono_base:
+    value: 0.0
+    source: "No aplica: estudiantes y personal no abandonan el campus"
+    confidence: estimado
+  ingreso_por_visita_Q:
+    value: 0
+    source: "No aplica: el valor se mide en tiempo, no en ingreso por visita"
+    confidence: estimado
+  valor_tiempo_estudiante_Q_h:
+    value: 15
+    source: "Valor del tiempo de un estudiante; estimado"
+    confidence: estimado
+  valor_tiempo_personal_Q_h:
+    value: 45
+    source: "Valor del tiempo del personal; estimado"
+    confidence: estimado
+  frac_personal:
+    value: 0.2
+    source: "Fracción de llegadas que son personal; estimado, reemplazar con conteo de campo"
+    confidence: estimado
+  segundos_por_revision:
+    value: 10
+    source: "Tiempo para revisar un espacio en la cámara; medir en campo"
+    confidence: estimado
+  revisiones_por_hora_amber:
+    value: 30
+    source: "Cada espacio en amarillo se re-revisa ~cada 2 min para que el estado siga vigente"
+    confidence: estimado
+  fraccion_tiempo_operador:
+    value: 0.5
+    source: "Fracción del tiempo del encargado actual disponible para verificar"
+    confidence: estimado
+  operadores_incluidos:
+    value: 1
+    source: "Encargado/guardia que ya existe; su costo no es incremental"
+    confidence: estimado
+  salario_operador_Q_h:
+    value: 25
+    source: "Costo por hora de un operador adicional con prestaciones"
+    confidence: estimado
+  n_camaras:
+    value: 9
+    source: "Igual al número de cámaras de CNR-EXT"
+    confidence: estimado
+  costo_camara_Q:
+    value: 1500
+    source: "Cámara IP exterior con instalación; estimado, reemplazar con cotización"
+    confidence: estimado
+  costo_servidor_mes_Q:
+    value: 400
+    source: "Servidor CPU pequeño o en la nube; estimado, reemplazar con cotización"
+    confidence: estimado
+  meses_amortizacion:
+    value: 36
+    source: "Vida útil de 3 años para el equipo; estimado"
+    confidence: estimado
+  costo_sensor_instalado_Q:
+    value: 770
+    source: "~USD 100 por espacio (sensor + instalación); estimado, reemplazar con cotización"
+    confidence: estimado
+  mantenimiento_sensores_mes_Q:
+    value: 300
+    source: "Mantenimiento mensual de la red de sensores; estimado"
+    confidence: estimado

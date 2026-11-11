@@ -1,0 +1,8 @@
+# Costos de cómputo para valorar entrenamiento e inferencia.
+# train_cost_usd = train_time_h · gpu_usd_per_hour; en Q se multiplica por gtq_per_usd.
+gtq_per_usd: 7.7          # tipo de cambio aproximado
+gpu_usd_per_hour: 0.35    # GPU de nube clase T4 equivalente, para valorar el entrenamiento (estimado; verificar)
+cpu_server_usd_per_hour: 0.05
+# Costo de inferencia por cada 1000 predicciones (Q). Fuente única del valor por defecto
+# para los escenarios de configs/value/; provisional (estimado), se reemplaza con el resultado de benchmark.
+costo_por_1000_pred_Q: 0.02

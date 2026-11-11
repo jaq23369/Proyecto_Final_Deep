@@ -1,0 +1,170 @@
+"""Búsqueda de los umbrales (t_L, t_H) que maximizan el valor de negocio.
+
+La búsqueda es vectorizada: se ordenan las probabilidades de cada clase una
+sola vez y, con ``np.searchsorted``, se obtienen las tasas de los tres estados
+para toda la grilla. Luego ``compute_value`` evalúa la grilla completa por
+difusión de arreglos (``t_L`` en el eje 0 y ``t_H`` en el eje 1).
+
+Regla de decisión (igual que ``metrics.three_state_rates``): ``p < t_L`` →
+LIBRE, ``p >= t_H`` → OCUPADO, en otro caso VERIFICAR. Con ``t_L == t_H``
+VERIFICAR queda vacío y coincide con ``metrics.binary_metrics``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from cupo.metrics import three_state_rates
+from cupo.value_model import compute_value
+
+# Tolerancia relativa para considerar empates en el valor de la grilla.
+_TIE_RTOL = 1e-9
+
+
+def _grid(lo: float, hi: float, step: float) -> np.ndarray:
+    """Grilla cerrada [lo, hi] con paso ``step`` (incluye ambos extremos exactos)."""
+    n = int(round((hi - lo) / step)) + 1
+    return np.round(np.linspace(lo, hi, n), 10)
+
+
+def threshold_grid(grid_step: float = 0.01) -> tuple[np.ndarray, np.ndarray]:
+    """Grillas de t_L ∈ [0, 0.5] y t_H ∈ [0.5, 1]; así siempre t_L ≤ t_H."""
+    return _grid(0.0, 0.5, grid_step), _grid(0.5, 1.0, grid_step)
+
+
+class _ClassScores:
+    """Probabilidades ordenadas de cada clase para contar rápido por umbral."""
+
+    def __init__(self, y: Any, p: Any) -> None:
+        y_arr = np.asarray(y).astype(int).ravel()
+        p_arr = np.asarray(p, dtype=float).ravel()
+        if y_arr.shape != p_arr.shape:
+            raise ValueError("y y p deben tener el mismo tamaño")
+        self.busy = np.sort(p_arr[y_arr == 1])
+        self.free = np.sort(p_arr[y_arr == 0])
+        if self.busy.size == 0 or self.free.size == 0:
+            raise ValueError("Se necesitan ejemplos de ambas clases para optimizar umbrales")
+
+    @staticmethod
+    def below(sorted_p: np.ndarray, t: np.ndarray) -> np.ndarray:
+        """Cuántos p < t."""
+        return np.searchsorted(sorted_p, t, side="left")
+
+    @staticmethod
+    def at_or_above(sorted_p: np.ndarray, t: np.ndarray) -> np.ndarray:
+        """Cuántos p >= t."""
+        return sorted_p.size - np.searchsorted(sorted_p, t, side="left")
+
+    def rates(self, t_L: np.ndarray, t_H: np.ndarray) -> dict[str, np.ndarray]:
+        """Tasas q_* que se difunden entre las formas de ``t_L`` y ``t_H``."""
+        n_b, n_f = self.busy.size, self.free.size
+        q_OL = self.below(self.busy, t_L) / n_b
+        q_LL = self.below(self.free, t_L) / n_f
+        q_OO = self.at_or_above(self.busy, t_H) / n_b
+        q_LO = self.at_or_above(self.free, t_H) / n_f
+        q_OV = 1.0 - q_OL - q_OO
+        q_LV = 1.0 - q_LL - q_LO
+        n_verify = q_OV * n_b + q_LV * n_f
+        return {
+            "q_OL": q_OL, "q_OV": q_OV, "q_OO": q_OO,
+            "q_LL": q_LL, "q_LV": q_LV, "q_LO": q_LO,
+            "verify_rate": n_verify / (n_b + n_f),
+        }
+
+
+def _objective_grid(
+    scores: _ClassScores, scenario_cfg: Mapping[str, Any], t_L: np.ndarray, t_H: np.ndarray
+) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Valor del objetivo en toda la grilla, forma (len(t_L), len(t_H))."""
+    rates = scores.rates(t_L[:, None], t_H[None, :])
+    values = compute_value(rates, scenario_cfg)["objective"]
+    shape = (t_L.size, t_H.size)
+    return np.broadcast_to(np.asarray(values, dtype=float), shape), rates
+
+
+def _pick_best(values: np.ndarray, t_L: np.ndarray, t_H: np.ndarray) -> tuple[int, int]:
+    """Índice del máximo; en empate elige la banda de verificación más angosta."""
+    best = np.nanmax(values)
+    tol = _TIE_RTOL * max(1.0, abs(best))
+    cand_i, cand_j = np.nonzero(values >= best - tol)
+    width = t_H[cand_j] - t_L[cand_i]
+    k = int(np.argmin(width))
+    return int(cand_i[k]), int(cand_j[k])
+
+
+def optimize(y: Any, p: Any, scenario_cfg: Mapping[str, Any], grid_step: float = 0.01) -> dict[str, Any]:
+    """Umbrales (t_L, t_H) que maximizan ``scenario_cfg['objective']``.
+
+    Grilla t_L ∈ [0, 0.5], t_H ∈ [0.5, 1] con paso ``grid_step``. Devuelve
+    ``{t_L, t_H, value, components, rates}``; ``components`` es la salida de
+    ``compute_value`` en el punto óptimo.
+
+    Usar solo con predicciones de validación; los umbrales nunca se
+    re-optimizan en test ni en OOD.
+    """
+    scores = _ClassScores(y, p)
+    t_L, t_H = threshold_grid(grid_step)
+    values, _ = _objective_grid(scores, scenario_cfg, t_L, t_H)
+    i, j = _pick_best(values, t_L, t_H)
+    best_L, best_H = float(t_L[i]), float(t_H[j])
+    rates = three_state_rates(y, p, best_L, best_H)
+    components = compute_value(rates, scenario_cfg)
+    return {
+        "t_L": best_L,
+        "t_H": best_H,
+        "value": float(components["objective"]),
+        "components": components,
+        "rates": rates,
+    }
+
+
+def curve_by_t_H(y: Any, p: Any, scenario_cfg: Mapping[str, Any], grid_step: float = 0.01) -> pd.DataFrame:
+    """Valor frente a t_H con el t_L óptimo para cada t_H."""
+    scores = _ClassScores(y, p)
+    t_L, t_H = threshold_grid(grid_step)
+    values, rates = _objective_grid(scores, scenario_cfg, t_L, t_H)
+    best_i = np.nanargmax(values, axis=0)
+    cols = np.arange(t_H.size)
+    full = {k: np.broadcast_to(v, values.shape) for k, v in rates.items()}
+    return pd.DataFrame({
+        "t_H": t_H,
+        "t_L_opt": t_L[best_i],
+        "value": values[best_i, cols],
+        "q_OL": full["q_OL"][best_i, cols],
+        "q_LO": full["q_LO"][best_i, cols],
+        "verify_rate": full["verify_rate"][best_i, cols],
+    })
+
+
+def curve_single_threshold(
+    y: Any, p: Any, scenario_cfg: Mapping[str, Any], grid_step: float = 0.01
+) -> pd.DataFrame:
+    """Decisión de dos estados (t_L = t_H = t): valor y métricas técnicas frente a t.
+
+    Con ``t_L = t_H = t`` VERIFICAR queda vacío: ocupado si ``p >= t``, igual
+    que ``metrics.binary_metrics``.
+    """
+    scores = _ClassScores(y, p)
+    t = _grid(0.0, 1.0, grid_step)
+    rates = scores.rates(t, t)
+    values = np.asarray(compute_value(rates, scenario_cfg)["objective"], dtype=float)
+
+    n_b, n_f = scores.busy.size, scores.free.size
+    fn = scores.below(scores.busy, t)
+    tn = scores.below(scores.free, t)
+    tp, fp = n_b - fn, n_f - tn
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f1_busy = np.where(2 * tp + fp + fn > 0, 2 * tp / (2 * tp + fp + fn), 0.0)
+        f1_free = np.where(2 * tn + fp + fn > 0, 2 * tn / (2 * tn + fp + fn), 0.0)
+    return pd.DataFrame({
+        "t": t,
+        "value": np.broadcast_to(values, t.shape),
+        "accuracy": (tp + tn) / (n_b + n_f),
+        "f1_macro": (f1_busy + f1_free) / 2,
+        "rate_busy_as_free": fn / n_b,
+        "verify_rate": rates["verify_rate"],
+    })
