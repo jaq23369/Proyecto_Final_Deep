@@ -92,6 +92,10 @@ params:
     value: 25
     source: "Costo por hora de un operador adicional con prestaciones"
     confidence: estimado
+  precision_verificacion:
+    value: 0.95
+    source: "Los casos en amarillo son los más ambiguos (sombras, oclusión); un operador también se equivoca. Estimado; medir en campo"
+    confidence: estimado
   n_camaras:
     value: 9
     source: "Igual al número de cámaras de CNR-EXT"
