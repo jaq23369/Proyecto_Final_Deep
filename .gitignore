@@ -11,6 +11,9 @@ checkpoints/
 models/*
 !models/.gitkeep
 
+# Retroalimentación de la app (datos de uso locales)
+app/feedback.jsonl
+
 # Python
 __pycache__/
 *.py[cod]
