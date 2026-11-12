@@ -461,10 +461,10 @@ def test_performance_claims_match_configs():
         assert c["data"]["num_workers"] == 6, name
         assert c["select"]["scenario"] == "comercial", name
         assert c["train"].get("cudnn_benchmark", False) is False, name
-    mnv3_ft, mnv3_ft_seeds = cfg("mnv3_ft"), cfg("mnv3_ft_seeds")
+    mnv3_ft_cost, mnv3_ft_seeds = cfg("mnv3_ft_cost"), cfg("mnv3_ft_seeds")
     assert mnv3_ft_seeds["name"] == "mnv3_ft_seeds"
     for sec in ("model", "data", "optim", "loss"):
-        assert mnv3_ft_seeds[sec] == mnv3_ft[sec], f"mnv3_ft_seeds difiere de mnv3_ft en {sec}"
+        assert mnv3_ft_seeds[sec] == mnv3_ft_cost[sec], f"mnv3_ft_seeds difiere de mnv3_ft_cost en {sec}"
     assert cfg("mnv3_ft_cost")["loss"]["cost_weight_busy"] == 3
 
 

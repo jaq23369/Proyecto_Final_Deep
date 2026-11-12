@@ -331,7 +331,7 @@ Cada corrida se lanza con una config de `configs/` y escribe todo en `runs/<run_
 | mnv3_ft | MobileNetV3-Small con fine-tuning completo + coseno + aumento | `configs/mnv3_ft.yaml` | `python -m cupo.train --config configs/mnv3_ft.yaml` |
 | mnv3_ft_cost | mnv3_ft + pérdida sensible al costo (peso 3 a ocupado) | `configs/mnv3_ft_cost.yaml` | `python -m cupo.train --config configs/mnv3_ft_cost.yaml` |
 | efficientnet_b0 | EfficientNet-B0 de ImageNet, fine-tuning completo | `configs/efficientnet_b0.yaml` | `python -m cupo.train --config configs/efficientnet_b0.yaml` |
-| mnv3_ft_seeds | Mejor modelo (mnv3_ft previsto) × 3 semillas + calibración | `configs/mnv3_ft_seeds.yaml` | ver [mnv3_ft_seeds](#mnv3_ft_seeds-semillas-y-calibración) |
+| mnv3_ft_seeds | Mejor modelo (mnv3_ft_cost) × 3 semillas + calibración | `configs/mnv3_ft_seeds.yaml` | ver [mnv3_ft_seeds](#mnv3_ft_seeds-semillas-y-calibración) |
 
 Como referencia, B1 completo tarda alrededor de 1 minuto y B2 unos 2 minutos por época en una
 RTX 2060.
@@ -387,10 +387,10 @@ EfficientNet-B0, unos 3 minutos en la RTX 2060.
 
 ### mnv3_ft_seeds: semillas y calibración
 
-`configs/mnv3_ft_seeds.yaml` repite la configuración de mnv3_ft (la candidata prevista) con
-`name: mnv3_ft_seeds`, para que la tabla la muestre como fila mnv3_ft_seeds. Si al final la mejor
-candidata en val no es mnv3_ft, se copian a ese archivo las secciones `model`, `data`, `optim` y `loss`
-de la ganadora (sin cambiar `name`).
+`configs/mnv3_ft_seeds.yaml` repite la configuración de mnv3_ft_cost (la de mayor valor comercial en val
+entre malexnet_aug y efficientnet_b0) con `name: mnv3_ft_seeds`, para que la tabla la muestre como fila mnv3_ft_seeds. Si se
+repitiera el experimento y ganara otra candidata, se copian a ese archivo las secciones `model`,
+`data`, `optim` y `loss` de la ganadora (sin cambiar `name`).
 
 1. Entrenar con tres semillas:
 

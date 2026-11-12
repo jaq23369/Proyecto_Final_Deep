@@ -439,10 +439,10 @@ def test_k6_config_resolves_and_builds():
     from cupo.models import build_model, count_params
 
     mnv3_ft_seeds = T.resolve_config(CONFIGS / "mnv3_ft_seeds.yaml")
-    mnv3_ft = T.resolve_config(CONFIGS / "mnv3_ft.yaml")
+    mnv3_ft_cost = T.resolve_config(CONFIGS / "mnv3_ft_cost.yaml")
     assert mnv3_ft_seeds["name"] == "mnv3_ft_seeds"
     for section in ("model", "data", "optim", "loss", "train", "select", "eval"):
-        assert mnv3_ft_seeds[section] == mnv3_ft[section], section
+        assert mnv3_ft_seeds[section] == mnv3_ft_cost[section], section
     m = mnv3_ft_seeds["model"]
     model = build_model(m["name"], pretrained=False, freeze=m["freeze"],
                         input_size=int(mnv3_ft_seeds["data"]["input_size"]))
