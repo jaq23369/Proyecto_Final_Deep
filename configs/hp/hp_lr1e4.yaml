@@ -1,0 +1,10 @@
+# Búsqueda de hiperparámetros (solo val): mnv3_ft_cost con lr 1e-4. Se corre con --runs-dir runs_hp.
+name: hp_lr1e4
+notes: "mnv3_ft_cost con lr 1e-4 (búsqueda de hiperparámetros)"
+model: {name: mobilenet_v3_small, pretrained: true, freeze: none}
+data: {input_size: 224, augment: true, batch_size: 128, num_workers: 6, subset: 1.0}
+optim: {name: adamw, lr: 1.0e-4, weight_decay: 1.0e-4, scheduler: cosine, warmup_epochs: 1}
+loss: {label_smoothing: 0.0, cost_weight_busy: 3.0}
+train: {epochs: 10, early_stopping_patience: 3, amp: true, seed: 42}
+select: {scenario: comercial}
+eval: {n_boot: 1000}

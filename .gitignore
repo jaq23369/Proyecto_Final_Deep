@@ -4,6 +4,7 @@ data/
 
 # Corridas, checkpoints y modelos pesados
 runs/
+runs_hp/
 checkpoints/
 *.pt
 *.pth
