@@ -83,7 +83,7 @@ cupo-seguro/
 ├─ app/                      app FastAPI: main.py (API), inference.py (ONNX), static/ (dashboard)
 ├─ models/                   best.onnx + best.json del modelo final (no se versionan; ver abajo)
 ├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones
-├─ docs/                     documentación complementaria (vacía por ahora)
+├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
 ├─ tests/                    pruebas (pytest)
 └─ runs/                     una carpeta por corrida (no se versiona)
 ```
@@ -614,7 +614,9 @@ App FastAPI (`app/main.py`) con un dashboard HTML (`app/static/`) que clasifica 
 ONNX Runtime (`app/inference.py`) usando `models/best.onnx` + `models/best.json`. Tiene tres
 modos: frame completo de CNR-EXT → mapa del parqueo; foto de un solo espacio; y foto nueva en la
 que el usuario dibuja los espacios. Muestra la confianza, el estado "por verificar", los umbrales
-de cada escenario (comercial / UVG) y un botón "este espacio estaba ocupado".
+de cada escenario (comercial / UVG) y un botón "este espacio estaba ocupado". El diagrama del
+sistema desplegado, las métricas operativas y el plan de monitoreo están en
+[docs/arquitectura.md](docs/arquitectura.md).
 
 ```bash
 # 1. Exportar el modelo (ver la sección anterior) → models/best.onnx + models/best.json
