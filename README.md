@@ -53,7 +53,7 @@ es el de **mayor valor comercial en validación** con sus umbrales óptimos.
 ## Estructura del repositorio
 
 ```
-cupo-seguro/
+proyecto_final_deep/
 ├─ pyproject.toml            paquete "cupo" (layout src), se instala con pip install -e .
 ├─ requirements.txt          dependencias con rango compatible (torch se instala aparte)
 ├─ requirements-lock.txt     entorno exacto de desarrollo (pip freeze, CUDA 12.8)
@@ -99,7 +99,7 @@ archivos y colócalos en `models/` (o genéralos con `export_onnx`, ver
 ## Instalación
 
 Requiere Python 3.11 o superior (se desarrolló con 3.12 en Windows 11 con una RTX 2060 de 6 GB).
-Todos los comandos de este README se ejecutan **desde la raíz del repo** (`cupo-seguro/`) y con
+Todos los comandos de este README se ejecutan **desde la raíz del repo** (`proyecto_final_deep/`) y con
 el entorno virtual activado.
 
 ### 1. Clonar y crear el entorno
@@ -109,14 +109,14 @@ Se recomienda esta estructura, para que los datos queden al lado del repo, en `.
 ```
 Proyecto/            ← carpeta de trabajo (cualquier nombre)
 ├─ Data/             ← la crea scripts/download_data.py
-└─ cupo-seguro/      ← el repo
+└─ proyecto_final_deep/      ← el repo
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-git clone <url-del-repo> cupo-seguro
-cd cupo-seguro
+git clone <url-del-repo> proyecto_final_deep
+cd proyecto_final_deep
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1      # si PowerShell lo bloquea: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 python -m pip install --upgrade pip
@@ -125,8 +125,8 @@ python -m pip install --upgrade pip
 **Linux / macOS:**
 
 ```bash
-git clone <url-del-repo> cupo-seguro
-cd cupo-seguro
+git clone <url-del-repo> proyecto_final_deep
+cd proyecto_final_deep
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
