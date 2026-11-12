@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cupo Seguro: espacios libres, ocupados y por verificar</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Cupo Seguro</h1>
+      <p>Cada espacio del parqueo como <span class="tag free">libre</span>, <span class="tag busy">ocupado</span> o <span class="tag verify">por verificar</span></p>
+    </div>
+    <div class="scenario" role="radiogroup" aria-label="Escenario de negocio">
+      <span class="label">Escenario</span>
+      <button type="button" class="scenario-btn active" data-scenario="comercial" role="radio" aria-checked="true">
+        Parqueo comercial <small id="th-comercial">t<sub>L</sub> –, t<sub>H</sub> –</small>
+      </button>
+      <button type="button" class="scenario-btn" data-scenario="uvg" role="radio" aria-checked="false">
+        Parqueo UVG <small id="th-uvg">t<sub>L</sub> –, t<sub>H</sub> –</small>
+      </button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden" role="alert"></div>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card">
+        <h2>Galería</h2>
+        <p class="hint">Solo imágenes que el modelo nunca vio al entrenar.</p>
+        <h3>Frames completos (fechas de prueba de CNR-EXT)</h3>
+        <div id="gallery-frames" class="thumbs"></div>
+        <h3>Otro parqueo (CNRPark A/B)</h3>
+        <div id="gallery-patches" class="thumbs small"></div>
+      </section>
+
+      <section class="card">
+        <h2>Tu imagen</h2>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="frame" role="tab">Frame completo</button>
+          <button type="button" class="tab" data-tab="patch" role="tab">Un espacio</button>
+          <button type="button" class="tab" data-tab="custom" role="tab">Dibujar espacios</button>
+        </div>
+
+        <form id="form-frame" class="tab-body" data-tab="frame">
+          <p class="hint">Foto de una cámara de CNR-EXT (1000×750). Las cajas de los espacios se toman de la cámara elegida.</p>
+          <label>Imagen <input type="file" name="file" accept="image/*" required></label>
+          <label>Cámara
+            <select name="camera">
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+            </select>
+          </label>
+          <button type="submit" class="primary">Analizar frame</button>
+        </form>
+
+        <form id="form-patch" class="tab-body hidden" data-tab="patch">
+          <p class="hint">Foto de un solo espacio (como los recortes de 150×150 del dataset).</p>
+          <label>Imagen <input type="file" name="file" accept="image/*" required></label>
+          <button type="submit" class="primary">Analizar espacio</button>
+        </form>
+
+        <div id="form-custom" class="tab-body hidden" data-tab="custom">
+          <p class="hint">Sube una foto de cualquier parqueo (o usa la imagen actual) y dibuja un rectángulo sobre cada espacio arrastrando el mouse.</p>
+          <label>Imagen <input type="file" id="custom-file" accept="image/*"></label>
+          <button type="button" id="custom-use-current" class="secondary">Usar la imagen actual</button>
+          <div class="draw-tools">
+            <span id="box-count">0 espacios dibujados</span>
+            <button type="button" id="draw-undo" class="secondary">Deshacer</button>
+            <button type="button" id="draw-clear" class="secondary">Limpiar</button>
+          </div>
+          <button type="button" id="draw-run" class="primary">Analizar espacios</button>
+          <button type="button" id="draw-edit" class="secondary hidden">Editar cajas</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="viewer">
+      <div class="viewer-head">
+        <h2 id="viewer-title">Elige un ejemplo de la galería o sube una imagen</h2>
+        <p id="viewer-sub" class="hint"></p>
+      </div>
+      <div id="warnings" class="warnings"></div>
+      <div id="stage" class="stage empty">
+        <img id="photo" alt="Imagen analizada">
+        <svg id="overlay" xmlns="http://www.w3.org/2000/svg" aria-label="Espacios detectados"></svg>
+        <canvas id="draw-canvas" class="hidden"></canvas>
+        <div id="spinner" class="spinner hidden">Analizando…</div>
+      </div>
+      <div class="legend">
+        <span><i class="sw free"></i> Libre (p &lt; t<sub>L</sub>)</span>
+        <span><i class="sw busy"></i> Ocupado (p ≥ t<sub>H</sub>)</span>
+        <span><i class="sw verify"></i> Por verificar: el modelo duda; el encargado lo revisa en la cámara</span>
+        <label id="gt-toggle-wrap" class="hidden"><input type="checkbox" id="gt-toggle" checked> Comparar con la etiqueta real</label>
+      </div>
+      <div id="tooltip" class="tooltip hidden"></div>
+    </section>
+
+    <aside class="panel">
+      <section class="card">
+        <h2>Resumen</h2>
+        <div class="counters">
+          <div class="counter free"><span id="c-free">–</span><small>Libres</small></div>
+          <div class="counter busy"><span id="c-busy">–</span><small>Ocupados</small></div>
+          <div class="counter verify"><span id="c-verify">–</span><small>Por verificar</small></div>
+        </div>
+        <p class="latency">Latencia: <strong id="latency">–</strong></p>
+        <div id="gt-summary" class="gt-summary hidden"></div>
+      </section>
+
+      <section class="card">
+        <h2>Espacio seleccionado</h2>
+        <div id="slot-detail" class="hint">Pasa el cursor sobre un espacio para ver la probabilidad; haz clic para seleccionarlo.</div>
+        <div id="feedback" class="feedback hidden">
+          <button type="button" id="fb-busy" class="danger">Este espacio estaba ocupado</button>
+          <button type="button" id="fb-free" class="secondary">Este espacio estaba libre</button>
+          <p id="fb-msg" class="hint"></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Modelo</h2>
+        <div id="model-info" class="hint">Cargando…</div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="credits">
+    <p>Datos: <strong>CNRPark+EXT</strong>, con licencia Open Data Commons Open Database License (ODbL) v1.0.
+      G. Amato, F. Carrara, F. Falchi, C. Gennaro, C. Meghini, C. Vairo, "Deep learning for decentralized parking lot occupancy detection",
+      <em>Expert Systems with Applications</em>, 72, 327-334, 2017. G. Amato, F. Carrara, F. Falchi, C. Gennaro, C. Vairo,
+      "Car parking occupancy detection using smart camera networks and deep learning", <em>IEEE ISCC 2016</em>, 1212-1217.</p>
+    <p>Las etiquetas reales de la galería solo se muestran si el servidor se inicia con SHOW_GROUND_TRUTH=1 (después del
+      congelamiento del modelo), como comparación visual; no se usan para elegir el modelo ni los umbrales.
+      Cupo Seguro, proyecto de CC3092 Deep Learning, UVG.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
