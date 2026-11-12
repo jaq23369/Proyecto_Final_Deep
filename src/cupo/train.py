@@ -332,7 +332,7 @@ def run_training(cfg: dict[str, Any], run_name: str | None = None, runs_root: Pa
                                num_workers=effective_workers(len(train_df), workers))
     val_loader = make_loader(val_df, build_transforms(size, train=False, augment=False),
                              batch_size=bs * 2, shuffle=False, seed=seed,
-                             num_workers=effective_workers(len(val_df), workers))
+                             num_workers=effective_workers(len(val_df), min(workers, 2)))
     print(f"train={len(train_df):,}  val={len(val_df):,}  device={device}  amp={amp}  "
           f"workers={train_loader.num_workers}/{val_loader.num_workers}")
 
