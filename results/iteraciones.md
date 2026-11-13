@@ -29,6 +29,21 @@ Generada con `scripts/results_table.py` a partir de 10 run(s) en `runs/`.
 | **efficientnet_b0** | 4.01 M | 15.58 | – | 165 (costs.yaml) | 14.4 min | 0.648 | no | 0.01 / 0.18 | 2.20 % | 0.01 / 0.18 |
 | **mnv3_ft_seeds** | 1.52 M | 5.93 ± 0.00 | – | 165 ± 0 (costs.yaml) | 40.1 min (3 runs; 13.4 min c/u) | 1.800 (3 runs; 0.600 c/u) | sí (T = 1.252 ± 0.206) | 0.08 / 0.65 (media) | 2.68 % ± 1.33 % | 0.08 / 0.65 (media) |
 
+## Test y fuera de dominio (evaluación única tras el congelamiento)
+
+Umbrales y temperatura elegidos en val; nunca se re-optimizan en test ni en OOD.
+
+| ID | Test F1 macro | Test ocupado→libre | Test valor comercial (Q/mes) | OOD (CNRPark A/B) F1 macro | OOD (CNRPark A/B) ocupado→libre | OOD (CNRPark A/B) valor comercial (Q/mes) |
+|---|---|---|---|---|---|---|
+| **B1** (b1_hog_lr) | 0.9556 | 4.73 % | 52,176 | 0.8396 | 16.10 % | 45,730 |
+| **B2** (b2_malexnet) | 0.9826 | 0.95 % | 53,802 | 0.8984 | 2.64 % | 47,927 |
+| **malexnet_aug** | 0.9874 | 0.84 % | 53,783 | 0.9277 | 2.81 % | 50,282 |
+| **mnv3_head** | 0.9956 | 0.31 % | 53,942 | 0.9409 | 5.61 % | 49,972 |
+| **mnv3_ft** | 0.9976 | 0.27 % | 53,929 | 0.9536 | 3.53 % | 52,616 |
+| **mnv3_ft_cost** | 0.9973 | 0.27 % | 53,946 | 0.9506 | 4.03 % | 52,238 |
+| **efficientnet_b0** | 0.9971 | 0.40 % | 53,879 | 0.9572 | 4.92 % | 53,599 |
+| **mnv3_ft_seeds** | 0.9957 ± 0.0026 | 0.21 % ± 0.07 % | 53,933 ± 19 | 0.9445 ± 0.0135 | 3.40 % ± 0.67 % | 51,000 ± 860 |
+
 ## ¿Cambia el ranking con los supuestos?
 
 Cada modelo conserva sus tasas en val y su punto de operación; se mueve un supuesto a la vez. Detalle en `ranking_sensibilidad_<escenario>.csv`.
