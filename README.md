@@ -71,6 +71,7 @@ proyecto_final_deep/
 │  ├─ value_model.py         modelo de valor de negocio
 │  ├─ calibrate.py           temperature scaling (CLI)
 │  ├─ export_onnx.py  benchmark.py         exportación a ONNX y latencia/costo (CLI)
+│  ├─ explain.py                           explicabilidad: instancias a explicar, oclusión y fidelidad
 │  └─ runs.py  utils.py  classical.py      utilidades de runs/, semillas, HOG
 ├─ scripts/
 │  ├─ download_data.py       descarga y verificación del dataset
