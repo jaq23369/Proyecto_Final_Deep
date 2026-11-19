@@ -6,6 +6,8 @@ ahí: las pruebas nunca escriben en ``models/`` ni en ``app/feedback.jsonl``.
 
 Las pruebas marcadas con ``data`` usan el dataset real bajo DATA_ROOT y se saltan si no está.
 Con las etiquetas reales (SHOW_GROUND_TRUTH) solo se comprueba si la clave aparece o no.
+``OWN_GALLERY_DIR`` apunta siempre a una carpeta vacía en ``tmp_path``: las fotos propias de
+``app/galeria_propia`` no afectan las pruebas.
 """
 
 from __future__ import annotations
@@ -31,7 +33,10 @@ from app_helpers import (
     TINY_W,
     assert_private,
     fake_data_root,
+    gallery_json_items,
+    has_gallery_data,
     has_key,
+    item_rel_paths,
     huge_png_bytes,
     leaks,
     make_model_dir,
@@ -54,18 +59,12 @@ USING_TINY = not os.environ.get(TEST_ONNX_ENV)
 
 
 def _gallery() -> list[dict]:
-    return json.loads(GALLERY_JSON.read_text(encoding="utf-8"))["items"]
+    return gallery_json_items()
 
 
 def _has_data() -> bool:
-    try:
-        if not (paths.split_file("train").is_file() and paths.split_file("val").is_file()
-                and paths.split_file("test").is_file() and paths.metadata_csv().is_file()
-                and paths.full_images_dir().is_dir() and paths.cnrpark_dir().is_dir()):
-            return False
-        return all((paths.data_root() / it["path"]).is_file() for it in _gallery())
-    except Exception:
-        return False
+    """Dataset presente y todas las imágenes de la galería (``path`` o ``cells[].path``)."""
+    return has_gallery_data()
 
 
 HAS_DATA = _has_data()
@@ -81,6 +80,15 @@ def gallery_ids(kind: str) -> list[str]:
 
 
 # ================================================================ fixtures
+
+@pytest.fixture(autouse=True)
+def _own_gallery_isolated(tmp_path, monkeypatch) -> Path:
+    """Las pruebas no ven las fotos propias de app/galeria_propia: carpeta vacía en tmp_path."""
+    folder = tmp_path / "galeria_propia_vacia"
+    folder.mkdir()
+    monkeypatch.setenv("OWN_GALLERY_DIR", str(folder))
+    return folder
+
 
 @pytest.fixture(autouse=True)
 def _repo_feedback_untouched():
@@ -302,14 +310,17 @@ def test_api_gallery(client):
     assert r.status_code == 200
     body = r.json()
     items = body["items"]
-    assert len(items) == 14
-    assert sum(it["kind"] == "frame" for it in items) == 8
-    assert sum(it["kind"] == "patch" for it in items) == 6
-    assert len({it["id"] for it in items}) == 14
+    assert len(items) == 47  # sin fotos propias (OWN_GALLERY_DIR vacía)
+    assert sum(it["kind"] == "frame" for it in items) == 29
+    assert sum(it["kind"] == "patch" for it in items) == 16
+    assert sum(it["kind"] == "mosaic" for it in items) == 2
+    assert len({it["id"] for it in items}) == 47
     for it in items:
         assert it["image_url"] == f"/api/gallery/{it['id']}/image"
-        assert "path" not in it
+        assert "path" not in it and "cells" not in it
         assert isinstance(it["available"], bool)
+        if it["kind"] == "mosaic":
+            assert it["n_cells"] == 12
     assert body["ground_truth_enabled"] is False
     assert_private(r)
 
@@ -324,10 +335,18 @@ def test_api_gallery_without_data_marks_unavailable(client, empty_root):
 def test_gallery_json_paths_are_relative():
     text = GALLERY_JSON.read_text(encoding="utf-8")
     assert leaks(text) is False
+    n_paths = 0
     for it in _gallery():
-        p = it["path"]
-        assert not Path(p).is_absolute() and not p.startswith("/")
-        assert ":" not in p and "\\" not in p and ".." not in Path(p).parts
+        rels = item_rel_paths(it)
+        assert rels, it["id"]
+        if it["kind"] == "mosaic":
+            assert "path" not in it
+        for p in rels:
+            n_paths += 1
+            assert isinstance(p, str) and p
+            assert not Path(p).is_absolute() and not p.startswith("/")
+            assert ":" not in p and "\\" not in p and ".." not in Path(p).parts
+    assert n_paths == 29 + 16 + 2 * 12
 
 
 @real_data
@@ -374,7 +393,12 @@ def test_predict_frame_upload_scales_camera_boxes(client, fake_root):
         assert [s["slot_id"] for s in body["slots"]] == list(expected["slot_id"])
         for slot, row in zip(body["slots"], expected.itertuples(index=False)):
             assert slot["box"] == {"x": row.x * scale, "y": row.y * scale, "w": row.w * scale, "h": row.h * scale}
-        assert body["warnings"] == []
+        if scale == 1:
+            assert body["warnings"] == []
+        else:
+            # 2000x1500 conserva el 4:3, pero no es el tamaño de las cámaras: se avisa
+            assert len(body["warnings"]) == 1
+            assert "mide 2000x1500" in body["warnings"][0] and "4:3" not in body["warnings"][0]
 
 
 def test_predict_frame_upload_other_aspect_warns(client, fake_root):
@@ -884,8 +908,9 @@ def _split_dates(name: str) -> set[str]:
 def test_gallery_frames_are_from_unseen_dates():
     seen = _split_dates("train") | _split_dates("val")
     frames_items = [it for it in _gallery() if it["kind"] == "frame"]
-    assert len(frames_items) == 8
-    assert len({it["camera"] for it in frames_items}) == 8
+    assert len(frames_items) == 29
+    assert len({it["id"] for it in frames_items}) == 29
+    assert len({it["path"] for it in frames_items}) == 29
     for it in frames_items:
         assert it["date"] not in seen
         assert it["subset"] == "CNR-EXT"
@@ -894,21 +919,75 @@ def test_gallery_frames_are_from_unseen_dates():
         assert (paths.data_root() / it["path"]).is_file()
 
 
+def test_gallery_frames_cover_cameras_and_weathers():
+    """27 = 9 cámaras x 3 climas (una vez cada par) + 2 casos difíciles marcados."""
+    frames_items = [it for it in _gallery() if it["kind"] == "frame"]
+    regular = [it for it in frames_items if not it.get("hard")]
+    hard = [it for it in frames_items if it.get("hard")]
+    assert len(regular) == 27 and len(hard) == 2
+    pairs = [(it["camera"], it["weather"]) for it in regular]
+    assert sorted(pairs) == sorted((c, w) for c in range(1, 10) for w in ("SUNNY", "OVERCAST", "RAINY"))
+    for it in hard:
+        assert it["hard"] is True and "difícil" in it["note"]
+    for it in frames_items:
+        assert f"/{it['weather']}/" in it["path"]
+        assert it["path"].startswith("CNR-EXT_FULL/FULL_IMAGE_1000x750/")
+
+
 def test_gallery_patches_are_cnrpark_ab():
     patches = [it for it in _gallery() if it["kind"] == "patch"]
-    assert len(patches) == 6
-    assert sorted(it["camera"] for it in patches) == ["A", "A", "A", "B", "B", "B"]
+    assert len(patches) == 16
+    assert sorted(it["camera"] for it in patches) == ["A"] * 8 + ["B"] * 8
+    assert len({it["path"] for it in patches}) == 16
     for it in patches:
         parts = Path(it["path"]).parts
         assert it["subset"] == "CNRPark" and parts[0] == "CNRPark" and parts[1] == it["camera"]
         assert "CNR-EXT" not in it["path"]
     for cam in ("A", "B"):
-        folders = {Path(it["path"]).parts[2] for it in patches if it["camera"] == cam}
-        assert folders == {"busy", "free"}
+        folders = [Path(it["path"]).parts[2] for it in patches if it["camera"] == cam]
+        assert sorted(folders) == ["busy"] * 4 + ["free"] * 4
+
+
+def test_gallery_mosaics_are_balanced_and_do_not_repeat_patches():
+    mosaics = [it for it in _gallery() if it["kind"] == "mosaic"]
+    singles = {it["path"] for it in _gallery() if it["kind"] == "patch"}
+    assert len(mosaics) == 2
+    assert sorted(m["camera"] for m in mosaics) == ["A", "B"]
+    seen: set[str] = set()
+    for m in mosaics:
+        assert m["subset"] == "CNRPark"
+        assert m["grid"] == {"cols": 4, "rows": 3} and m["cell_size"] == 150
+        cells = m["cells"]
+        assert len(cells) == 12
+        assert [c["slot_id"] for c in cells] == [str(i) for i in range(1, 13)]
+        cell_paths = [c["path"] for c in cells]
+        assert len(set(cell_paths)) == 12
+        folders = []
+        for p in cell_paths:
+            parts = Path(p).parts
+            assert parts[0] == "CNRPark" and parts[1] == m["camera"]
+            folders.append(parts[2])
+        assert sorted(folders) == ["busy"] * 6 + ["free"] * 6
+        assert not (set(cell_paths) & singles), "un mosaico repite un patch suelto"
+        assert not (set(cell_paths) & seen)
+        seen |= set(cell_paths)
+
+
+def test_has_data_does_not_skip_when_dataset_is_present():
+    """Si el dataset está en DATA_ROOT, HAS_DATA debe ser True (las pruebas con datos no se saltan)."""
+    present = (paths.full_images_dir().is_dir() and paths.cnrpark_dir().is_dir()
+               and paths.split_file("val").is_file())
+    if not present:
+        pytest.skip("dataset no disponible en DATA_ROOT")
+    root = paths.data_root()
+    missing = [rel for it in _gallery() for rel in item_rel_paths(it) if not (root / rel).is_file()]
+    assert missing == [], f"faltan {len(missing)} imágenes de la galería en DATA_ROOT"
+    assert HAS_DATA is True
 
 
 @real_data
 def test_gallery_patches_exist():
     for it in _gallery():
-        if it["kind"] == "patch":
-            assert (paths.data_root() / it["path"]).is_file()
+        if it["kind"] in ("patch", "mosaic"):
+            for rel in item_rel_paths(it):
+                assert (paths.data_root() / rel).is_file()

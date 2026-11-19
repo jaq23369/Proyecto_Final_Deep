@@ -79,9 +79,11 @@ proyecto_final_deep/
 │  ├─ results_table.py       tabla de iteraciones → results/iteraciones*.md/.csv, ranking_sensibilidad_*.csv
 │  ├─ make_figures.py        figuras → results/figures/ (con --with-table, también la tabla)
 │  ├─ gradcam.py             Grad-CAM → results/figures/
-│  └─ build_gallery.py       galería de demo de la app → app/gallery.json
-├─ app/                      app FastAPI: main.py (API), inference.py (ONNX), static/ (dashboard)
-├─ models/                   best.onnx + best.json del modelo final (no se versionan; ver abajo)
+│  ├─ build_gallery.py       galería de demo de la app → app/gallery.json
+│  └─ export_classical.py    baseline B1 para el selector de modelos de la app → models/
+├─ app/                      app FastAPI: main.py (API), inference.py (ONNX y clásico), static/ (dashboard),
+│                            galeria_propia/ (fotos propias locales; solo se versiona su LEEME.md)
+├─ models/                   best.onnx + best.json del modelo final y los baselines (no se versionan; ver abajo)
 ├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones
 ├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
 ├─ tests/                    pruebas (pytest)
@@ -226,9 +228,11 @@ columna `occupancy` del CSV en 26 patches (0.018 %).
   atribuyen el dataset a sus autores.
 - Si se usa el dataset, hay que citar [1] y [2] (ver [Créditos](#créditos-y-licencia-del-dataset)).
 - **Privacidad:** los autores redujeron las imágenes completas de 2592×1944 a 1000×750 por
-  razones de privacidad, y los patches de 150×150 solo muestran un espacio. Este proyecto no
-  agrega fotos propias con placas ni personas visibles. La galería de la app usa solo imágenes
-  del dataset (frames de fechas de test y patches de CNRPark A/B). Las imágenes que un usuario
+  razones de privacidad, y los patches de 150×150 solo muestran un espacio. El repositorio no
+  incluye fotos propias: la galería local de la app (`app/galeria_propia/`) está en
+  `.gitignore` porque sus fotos pueden tener placas y personas; solo se versiona su `LEEME.md`.
+  La galería versionada (`app/gallery.json`) usa solo imágenes del dataset (frames de fechas de
+  test y patches de CNRPark A/B). Las imágenes que un usuario
   sube a la app se procesan en memoria; lo único que se guarda es el reporte del botón de
   retroalimentación (`app/feedback.jsonl`, sin imágenes).
 - El código de los autores (github.com/fabiocarrara/deep-parking) no tiene archivo de licencia:
@@ -314,7 +318,8 @@ larga conviene la [prueba de humo](#prueba-de-humo-obligatoria-antes-de-cada-cor
 8. **Benchmark:** `python -m cupo.benchmark --onnx models/best.onnx --run runs/<run_id>`, y volver a
    generar la tabla para que incluya la latencia.
 9. **Grad-CAM:** `python scripts/gradcam.py --run runs/<run_id> --split val --n 16`.
-10. **App:** `python scripts/build_gallery.py` y `uvicorn app.main:app --port 8000`.
+10. **App:** `python scripts/build_gallery.py` y `uvicorn app.main:app --port 8000` (para el
+    selector de modelos, exportar también B1 y B2; ver [App de demostración](#app-de-demostración)).
 
 ## Reproducir cada iteración
 
@@ -576,7 +581,9 @@ Escribe `models/best.onnx` (entrada `[batch, 3, H, W]`, salida `logits`, eje de 
 opset 17) y `models/best.json` con el nombre, el run, el tamaño de entrada, la temperatura, los
 umbrales de cada escenario y un resumen de métricas de val. Verifica con imágenes de val que ONNX
 Runtime y PyTorch coincidan (diferencia máxima < 1e-3); si no, termina con error. Opciones:
-`--opset`, `--n-check`. B1 (`model.joblib`) no se exporta.
+`--opset`, `--n-check`. La tarjeta se llama como el `.onnx` (`<stem>.json`: `best.json` para
+`best.onnx`). B1 (`model.joblib`) no se exporta a ONNX; para la app se usa
+`scripts/export_classical.py` (ver [App de demostración](#app-de-demostración)).
 
 **`best.onnx` y `best.json` van siempre juntos:** se copian, mueven o reemplazan como par. El
 `.json` trae la temperatura y los umbrales que la app aplica a los logits del `.onnx`, y
@@ -610,31 +617,90 @@ siempre (el flag existe, pero el script termina con error). Opciones: `--out`, `
 
 ## App de demostración
 
-App FastAPI (`app/main.py`) con un dashboard HTML (`app/static/`) que clasifica cada espacio con
-ONNX Runtime (`app/inference.py`) usando `models/best.onnx` + `models/best.json`. Tiene tres
-modos: frame completo de CNR-EXT → mapa del parqueo; foto de un solo espacio; y foto nueva en la
-que el usuario dibuja los espacios. Muestra la confianza, el estado "por verificar", los umbrales
-de cada escenario (comercial / UVG) y un botón "este espacio estaba ocupado". El diagrama del
-sistema desplegado, las métricas operativas y el plan de monitoreo están en
+App FastAPI (`app/main.py`) con un dashboard HTML (`app/static/`) que clasifica cada espacio en
+CPU (`app/inference.py`): con ONNX Runtime para los modelos de deep learning y con HOG +
+regresión logística para el baseline clásico. El modelo por defecto es `models/best.onnx` +
+`models/best.json`. Tiene tres modos: **Tu parqueo: dibujar espacios** (foto de cualquier
+parqueo en la que el usuario dibuja los espacios), **Cámara de CNR-EXT** (frame completo de una
+de las 9 cámaras del dataset → mapa del parqueo con sus cajas fijas) y **Un espacio**. Muestra
+la confianza, el estado "por verificar", los umbrales de cada escenario (comercial / UVG), qué
+modelo produjo el resultado y un botón "este espacio estaba ocupado". El diagrama del sistema
+desplegado, las métricas operativas y el plan de monitoreo están en
 [docs/arquitectura.md](docs/arquitectura.md).
 
 ```bash
-# 1. Exportar el modelo (ver la sección anterior) → models/best.onnx + models/best.json
+# 1. Exportar el modelo final (ver la sección anterior) → models/best.onnx + models/best.json
 python -m cupo.export_onnx --run runs/<run_id> --out models/best.onnx
-# 2. Preparar la galería de demo → app/gallery.json (solo imágenes nunca vistas en el
+# 2. (Opcional) Exportar los baselines para el selector de modelos
+python -m cupo.export_onnx --run runs/<id_b2> --out models/b2_malexnet.onnx
+python scripts/export_classical.py --run runs/<id_b1> --out models/b1_hog_lr.joblib
+# 3. Preparar la galería de demo → app/gallery.json (solo imágenes nunca vistas en el
 #    entrenamiento: frames completos de fechas de test y patches de CNRPark A/B)
 python scripts/build_gallery.py
-# 3. Levantar la app y abrir http://127.0.0.1:8000
+# 4. Levantar la app y abrir http://127.0.0.1:8000
 uvicorn app.main:app --port 8000
 ```
 
-`build_gallery.py` elige los ejemplos de forma determinista con metadatos (clima, cámara y la hora
-más cercana a una hora objetivo), sin predicciones ni métricas de test. En los patches de CNRPark
-usa la carpeta de clase para tener un ejemplo libre y uno ocupado por cámara; en los frames
-verifica que existan etiquetas cerca de la hora, sin mirar sus valores. Guarda rutas relativas a
-`DATA_ROOT` (las imágenes no se copian al repo). Opción: `--out` (por defecto `app/gallery.json`).
+### Selector de modelos (B1, B2 y el modelo final)
 
-- **Cambiar de modelo = reemplazar un archivo:** basta con sobrescribir el par
+La app descubre en la carpeta del modelo por defecto (`models/`, o la de `MODEL_PATH`) todos los
+pares `<stem>.onnx` + `<stem>.json` y `<stem>.joblib` + `<stem>.json`; cada uno aparece en el
+selector **Modelo** de la barra superior con una etiqueta legible ("B1 · HOG + regresión
+logística (clásico)", "B2 · mAlexNet", "Modelo final · MobileNetV3 (mnv3_ft_cost)"; si el nombre
+no se conoce, se muestra el `name` de la tarjeta). Cada modelo se carga la primera vez que se
+pide, queda en caché y se recarga si cambia su archivo. Al cambiar de modelo, la imagen actual
+(de la galería, subida o con cajas dibujadas) se vuelve a analizar sola y el panel "Modelo"
+muestra el elegido; la latencia medida de `benchmark.json` solo se muestra para el modelo del que
+salió.
+
+- **B2 (mAlexNet):** se exporta a ONNX con la misma herramienta que el modelo final; la tarjeta
+  queda como `models/b2_malexnet.json`.
+- **B1 (HOG + regresión logística):** no es ONNX. `scripts/export_classical.py` copia
+  `model.joblib` del run a `--out` y escribe `<stem>.json` con el mismo esquema que `export_onnx`
+  (nombre, run, umbrales por escenario, resumen de val, temperatura 1.0, `kind: "classical"` y
+  los parámetros HOG). Verifica con patches de val que la p calculada como en la app coincide
+  con la de `val_preds.npz` del run. La app calcula HOG desde la imagen en memoria con
+  `cupo.classical.hog_image`, la misma función que usa el entrenamiento.
+- API: `GET /api/models` devuelve `{models: [{id, label, name, model, kind, is_default, val_f1,
+  val_value_comercial, thresholds, available, error}], default}`; `GET /api/model` con el
+  parámetro `model=<id>` da el detalle de un modelo; los tres endpoints de predicción
+  (`/api/predict/frame`, `/api/predict/patch` y `/api/predict/custom`) aceptan el campo opcional
+  `model` (un id de la lista) y la respuesta trae `model: {id, label, name, run_id, kind}`. Un id desconocido
+  devuelve 400 con las opciones válidas.
+
+### Fotos propias y galería local
+
+Las cajas fijas del modo **Cámara de CNR-EXT** solo coinciden con las 9 cámaras del dataset
+(1000×750). Con fotos de otro parqueo (por ejemplo, el de la UVG) caen en cualquier lado; por
+eso la app avisa si la foto no mide 1000×750 y la pestaña recomendada es **Tu parqueo: dibujar
+espacios**. Ahí conviene dibujar cada caja ajustada a un solo espacio (sin topes de concreto ni
+árboles). El modelo se entrenó con cámaras elevadas que miran en diagonal, de día: las fotos de
+noche o a nivel del suelo están fuera de dominio y se esperan más "por verificar".
+
+- **Guardar cajas** descarga un JSON `{image: <nombre>, boxes: [{slot_id, x, y, w, h}]}` en
+  píxeles de la imagen original; **Cargar cajas** lee ese JSON y deja las cajas editables.
+- **Galería local:** cada foto `app/galeria_propia/<foto>.jpg|jpeg|png` con su `<foto>.json` de
+  cajas (el mismo formato) aparece en la sección "Parqueo UVG (fotos propias)" de la galería y se
+  analiza con esas cajas; sin JSON se abre directamente en el modo de dibujo. La carpeta se
+  cambia con `OWN_GALLERY_DIR`. Su contenido **no se versiona** (solo
+  [app/galeria_propia/LEEME.md](app/galeria_propia/LEEME.md), que explica el formato): las fotos
+  pueden tener personas y placas y el repositorio es público.
+
+### Galería de demo
+
+`build_gallery.py` elige los ejemplos de forma determinista con metadatos, sin predicciones ni
+métricas de test: un frame de fecha de test por cámara (1-9) y por clima (soleado, nublado,
+lluvia), el más cercano a una hora objetivo y con etiquetas cerca de esa hora (sin mirar sus
+valores), más dos casos difíciles (temprano con lluvia y al atardecer); 8 patches por cámara de
+CNRPark A/B (4 de la carpeta `busy` y 4 de `free`); y dos mosaicos (uno de A y uno de B) de 12
+patches de CNRPark distintos (6 y 6) en una cuadrícula 4×3, que la app compone al vuelo con
+celdas de 150×150 y analiza celda por celda. Guarda rutas relativas a `DATA_ROOT` (las imágenes
+no se copian al repo). Opción: `--out` (por defecto `app/gallery.json`). En el dashboard los
+frames se agrupan por clima y la galería se desplaza dentro de su panel.
+
+### Configuración y casos límite
+
+- **Cambiar el modelo por defecto = reemplazar un archivo:** basta con sobrescribir el par
   `models/best.onnx` + `models/best.json` (con `export_onnx`); la app detecta el cambio y recarga
   el modelo en la siguiente petición, sin reiniciar. También se puede apuntar la variable de
   entorno `MODEL_PATH` a otro `.onnx` (su `.json` con el mismo nombre debe estar al lado; las
@@ -646,25 +712,28 @@ verifica que existan etiquetas cerca de la hora, sin mirar sus valores. Guarda r
   ```
 
 - Variables de entorno: `MODEL_PATH` (por defecto `models/best.onnx`), `DATA_ROOT` (datos para
-  la galería), `FEEDBACK_PATH` (por defecto `app/feedback.jsonl`) y `SHOW_GROUND_TRUTH`
-  (desactivada por defecto; ver abajo).
-- Endpoints: `GET /` (dashboard), `GET /api/model`, `GET /api/gallery`,
+  la galería), `OWN_GALLERY_DIR` (por defecto `app/galeria_propia`), `FEEDBACK_PATH` (por defecto
+  `app/feedback.jsonl`) y `SHOW_GROUND_TRUTH` (desactivada por defecto; ver abajo).
+- Endpoints: `GET /` (dashboard), `GET /api/models`, `GET /api/model`, `GET /api/gallery`,
   `GET /api/gallery/{id}/image`, `POST /api/predict/frame`, `POST /api/predict/patch`,
   `POST /api/predict/custom`, `POST /api/feedback`.
 - Casos límite: un archivo que no es imagen o está vacío devuelve 400 con un mensaje; uno de
   más de 15 MB o de más de 50 megapíxeles devuelve 413; un frame de menos de 320×240 devuelve
-  400; una cámara fuera de 1-9 devuelve 400; una imagen muy oscura o borrosa devuelve una
-  advertencia visible; sin cajas dibujadas, la app pide dibujar al menos una; sin modelo exportado
-  o sin las cajas de la cámara en `DATA_ROOT`, la API responde 503 con una explicación. El reporte
-  de retroalimentación se valida (estados, escenario, `p_busy` en [0, 1], `slot_id` corto) y su
-  cuerpo no puede pasar de 2 KB.
-- La galería necesita los datos en `DATA_ROOT`; las fotos subidas por el usuario se procesan en
-  memoria y no se guardan.
+  400; una cámara fuera de 1-9 devuelve 400; un id de modelo desconocido devuelve 400; una imagen
+  muy oscura o borrosa devuelve una advertencia visible; sin cajas dibujadas, la app pide dibujar
+  al menos una; sin modelo exportado o sin las cajas de la cámara en `DATA_ROOT`, la API responde
+  503 con una explicación. El reporte de retroalimentación se valida (estados, escenario, modelo,
+  `p_busy` en [0, 1], `slot_id` corto) y su cuerpo no puede pasar de 2 KB.
+- La galería del dataset necesita los datos en `DATA_ROOT`; las fotos subidas por el usuario se
+  procesan en memoria y no se guardan.
 - Enlace directo a un ejemplo (útil como respaldo en la demo):
-  `http://127.0.0.1:8000/?ejemplo=<id>&escenario=uvg`, con `<id>` de `app/gallery.json`.
-- **Etiquetas reales de la galería:** solo después del congelamiento del modelo. Por defecto la
-  app no las envía. Con `SHOW_GROUND_TRUTH=1` la galería las muestra como comparación visual
-  (aciertos ✓ y errores ✗); nunca se usan para elegir el modelo ni los umbrales.
+  `http://127.0.0.1:8000/?ejemplo=<id>&escenario=uvg&modelo=<id_modelo>`, con `<id>` de
+  `app/gallery.json` (o `own-<foto>` para una foto propia) y `<id_modelo>` de `GET /api/models`.
+- **Etiquetas reales de la galería:** solo después del congelamiento del modelo (sábado 14 de
+  noviembre). Por defecto la app no las envía. Para la demo, ya pasado el congelamiento, se
+  arranca con `SHOW_GROUND_TRUTH=1` y la galería las muestra como comparación visual (aciertos ✓
+  y errores ✗; en los patches y mosaicos de CNRPark salen de la carpeta `busy`/`free`); nunca se
+  usan para elegir el modelo ni los umbrales.
 
   ```bash
   SHOW_GROUND_TRUTH=1 uvicorn app.main:app --port 8000               # solo después del congelamiento

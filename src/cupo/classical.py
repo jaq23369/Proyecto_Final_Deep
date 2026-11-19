@@ -6,9 +6,13 @@ rápido y con poca memoria.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 HOG_DEFAULTS: dict = {
     "image_size": 64,
@@ -18,14 +22,17 @@ HOG_DEFAULTS: dict = {
 }
 
 
-def hog_one(path: str, image_size: int = 64, orientations: int = 9,
-            pixels_per_cell: int = 8, cells_per_block: int = 2) -> np.ndarray:
-    """HOG de una imagen: gris → redimensionar a ``image_size`` → ``skimage.feature.hog``."""
-    from PIL import Image
+def hog_image(img: Image.Image, image_size: int = 64, orientations: int = 9,
+              pixels_per_cell: int = 8, cells_per_block: int = 2) -> np.ndarray:
+    """HOG de una imagen ya abierta: gris → redimensionar a ``image_size`` → ``skimage.feature.hog``.
+
+    Es el único camino de preprocesamiento del baseline: lo usan el entrenamiento (vía
+    ``hog_one``) y la app (recortes en memoria), así que ambos calculan las mismas features.
+    """
+    from PIL import Image as PILImage
     from skimage.feature import hog
 
-    with Image.open(path) as im:
-        gray = im.convert("L").resize((image_size, image_size), Image.Resampling.BILINEAR)
+    gray = img.convert("L").resize((image_size, image_size), PILImage.Resampling.BILINEAR)
     arr = np.asarray(gray, dtype=np.float32) / 255.0
     feats = hog(
         arr,
@@ -36,6 +43,22 @@ def hog_one(path: str, image_size: int = 64, orientations: int = 9,
         feature_vector=True,
     )
     return feats.astype(np.float32)
+
+
+def hog_one(path: str, image_size: int = 64, orientations: int = 9,
+            pixels_per_cell: int = 8, cells_per_block: int = 2) -> np.ndarray:
+    """HOG de una imagen en disco (abre el archivo y delega en ``hog_image``)."""
+    from PIL import Image as PILImage
+
+    with PILImage.open(path) as im:
+        return hog_image(im, image_size=image_size, orientations=orientations,
+                         pixels_per_cell=pixels_per_cell, cells_per_block=cells_per_block)
+
+
+def classical_logits(bundle: Mapping[str, Any], features: np.ndarray) -> np.ndarray:
+    """Logits ``[0, z]`` de la regresión logística: softmax da sigmoid(z) = P(ocupado)."""
+    z = bundle["pipeline"].decision_function(features)
+    return np.stack([np.zeros_like(z), z], axis=1).astype(np.float32)
 
 
 def _hog_chunk(paths: Sequence[str], params: dict) -> np.ndarray:

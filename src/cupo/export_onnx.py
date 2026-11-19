@@ -8,9 +8,10 @@ Uso:
   La app calcula P(ocupado) = softmax(logits / T)[:, 1] con la ``temperature`` de
   ``best.json`` y aplica los umbrales ``t_L``/``t_H`` del escenario.
 - Eje de batch dinámico y opset 17.
-- Escribe ``best.json`` junto al ``.onnx`` con nombre, run, tamaño de entrada,
-  temperatura, umbrales y resumen de métricas de validación (todo de ``runs.load_run``,
-  que respeta ``calibration.json``).
+- Escribe la tarjeta ``<stem de --out>.json`` junto al ``.onnx`` (``best.json`` para
+  ``best.onnx``, ``b2_malexnet.json`` para ``b2_malexnet.onnx``) con nombre, run, tamaño de
+  entrada, temperatura, umbrales y resumen de métricas de validación (todo de
+  ``runs.load_run``, que respeta ``calibration.json``).
 - Verifica con imágenes de val que ONNX Runtime y PyTorch den los mismos logits
   (diferencia absoluta máxima < 1e-3); si no, termina con error.
 
@@ -23,7 +24,8 @@ Notas de exportación:
   numéricamente contra PyTorch (la diferencia queda en el orden de 1e-7). Se probó
   reemplazarla por el nodo ``LRN`` nativo de ONNX y en ONNX Runtime (CPU) resultó más
   lenta (~1.5x), así que se deja la versión trazada.
-- Los runs clásicos (B1, ``model.joblib``) no se exportan: no son modelos de PyTorch.
+- Los runs clásicos (B1, ``model.joblib``) no se exportan a ONNX: no son modelos de PyTorch;
+  para la app se usa ``scripts/export_classical.py``.
 """
 
 from __future__ import annotations
@@ -244,10 +246,10 @@ def model_card(run: LoadedRun, onnx_path: Path, check: dict[str, Any], opset: in
 # ---------------------------------------------------------------------------
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Exporta un run de PyTorch a ONNX + best.json.")
+    parser = argparse.ArgumentParser(description="Exporta un run de PyTorch a ONNX + <stem>.json (best.json para best.onnx).")
     parser.add_argument("--run", required=True, help="runs/<run_id> o solo el run_id")
     parser.add_argument("--out", default=str(paths.models_dir() / "best.onnx"),
-                        help="ruta del .onnx (por defecto models/best.onnx); best.json va al lado")
+                        help="ruta del .onnx (por defecto models/best.onnx); la tarjeta <stem>.json va al lado")
     parser.add_argument("--opset", type=int, default=OPSET, help=f"opset de ONNX (>= {OPSET})")
     parser.add_argument("--n-check", type=int, default=CHECK_N,
                         help="imágenes de val para comparar ONNX contra PyTorch")
