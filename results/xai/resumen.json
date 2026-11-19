@@ -1,0 +1,15 @@
+{
+  "errores_ocupado_libre_test": 10,
+  "errores_con_lluvia": 10,
+  "camaras_de_los_errores": [
+    "4",
+    "5",
+    "7",
+    "8",
+    "9"
+  ],
+  "centro_medio_muestra_global": 0.3104114830493927,
+  "centro_medio_errores": 0.25391972064971924,
+  "fidelidad_top_menos_azar": 2.958771550629218,
+  "fidelidad_pct_top_mayor_azar": 93.05555555555556
+}

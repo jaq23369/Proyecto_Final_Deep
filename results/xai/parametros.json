@@ -1,0 +1,18 @@
+{
+  "semilla": 42,
+  "run": "mnv3_ft_cost_s42_20261112-1505",
+  "capa_objetivo_gradcam": "model.features[-1] (última Conv2dNormActivation de MobileNetV3-Small)",
+  "puntaje_explicado": "margen z_clase - z_otra de la clase de la decisión (ocupado si p >= t_H, libre si p < t_L, y en por verificar la más probable)",
+  "oclusion_ventana_px": 56,
+  "oclusion_paso_px": 28,
+  "oclusion_relleno": "0 en la entrada normalizada (color medio de ImageNet)",
+  "fidelidad_fraccion_tapada": 0.2,
+  "fidelidad_cuadrados_al_azar": 5,
+  "global_imagenes_por_clase_y_clima": 84,
+  "global_centro_lado_relativo": 0.5,
+  "umbrales": {
+    "t_L": 0.01,
+    "t_H": 0.23,
+    "temperatura": 1.0
+  }
+}
