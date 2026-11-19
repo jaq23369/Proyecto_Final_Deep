@@ -856,16 +856,13 @@ def _git_available() -> bool:
 
 
 @pytest.mark.skipif(not _git_available(), reason="sin git o fuera del repositorio")
-def test_own_gallery_is_gitignored_except_readme():
+def test_own_gallery_is_fully_gitignored():
     for rel in ("app/galeria_propia/foto.jpg", "app/galeria_propia/foto.json", "app/galeria_propia/Foto_3.jpeg",
-                "app/galeria_propia/x.png", "app/galeria_propia/sub/y.jpeg", "app/galeria_propia/notas.txt"):
+                "app/galeria_propia/x.png", "app/galeria_propia/sub/y.jpeg", "app/galeria_propia/notas.txt",
+                "app/galeria_propia/LEEME.md"):
         assert _git("check-ignore", "--no-index", "-q", rel).returncode == 0, rel
-    assert _git("check-ignore", "--no-index", "-q", "app/galeria_propia/LEEME.md").returncode == 1
-    status = _git("status", "--porcelain", "--untracked-files=all", "--", "app/galeria_propia")
-    assert status.returncode == 0
-    names = [line[3:].strip().strip('"') for line in status.stdout.splitlines() if line.strip()]
-    assert all(n == "app/galeria_propia/LEEME.md" for n in names), names
-    assert (REPO / "app" / "galeria_propia" / "LEEME.md").is_file()
+    tracked = _git("ls-files", "--", "app/galeria_propia")
+    assert tracked.returncode == 0 and tracked.stdout.strip() == ""
 
 
 # ================================================================ tiempo del conductor

@@ -81,8 +81,7 @@ proyecto_final_deep/
 │  ├─ gradcam.py             Grad-CAM → results/figures/
 │  ├─ build_gallery.py       galería de demo de la app → app/gallery.json
 │  └─ export_classical.py    baseline B1 para el selector de modelos de la app → models/
-├─ app/                      app FastAPI: main.py (API), inference.py (ONNX y clásico), static/ (dashboard),
-│                            galeria_propia/ (fotos propias locales; solo se versiona su LEEME.md)
+├─ app/                      app FastAPI: main.py (API), inference.py (ONNX y clásico), static/ (dashboard)
 ├─ models/                   best.onnx + best.json del modelo final y los baselines (no se versionan; ver abajo)
 ├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones
 ├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
@@ -229,8 +228,8 @@ columna `occupancy` del CSV en 26 patches (0.018 %).
 - Si se usa el dataset, hay que citar [1] y [2] (ver [Créditos](#créditos-y-licencia-del-dataset)).
 - **Privacidad:** los autores redujeron las imágenes completas de 2592×1944 a 1000×750 por
   razones de privacidad, y los patches de 150×150 solo muestran un espacio. El repositorio no
-  incluye fotos propias: la galería local de la app (`app/galeria_propia/`) está en
-  `.gitignore` porque sus fotos pueden tener placas y personas; solo se versiona su `LEEME.md`.
+  incluye fotos propias: la galería local opcional de la app (carpeta `galeria_propia` dentro de `app`) está en
+  `.gitignore` porque sus fotos pueden tener placas y personas.
   La galería versionada (`app/gallery.json`) usa solo imágenes del dataset (frames de fechas de
   test y patches de CNRPark A/B). Las imágenes que un usuario
   sube a la app se procesan en memoria; lo único que se guarda es el reporte del botón de
@@ -689,12 +688,12 @@ noche o a nivel del suelo están fuera de dominio y se esperan más "por verific
 
 - **Guardar cajas** descarga un JSON `{image: <nombre>, boxes: [{slot_id, x, y, w, h}]}` en
   píxeles de la imagen original; **Cargar cajas** lee ese JSON y deja las cajas editables.
-- **Galería local:** cada foto `app/galeria_propia/<foto>.jpg|jpeg|png` con su `<foto>.json` de
-  cajas (el mismo formato) aparece en la sección "Fotos propias" de la galería (oculta si no hay) y se
-  analiza con esas cajas; sin JSON se abre directamente en el modo de dibujo. La carpeta se
-  cambia con `OWN_GALLERY_DIR`. Su contenido **no se versiona** (solo
-  [app/galeria_propia/LEEME.md](app/galeria_propia/LEEME.md), que explica el formato): las fotos
-  pueden tener personas y placas y el repositorio es público.
+- **Galería local (opcional):** si se crea la carpeta `galeria_propia` dentro de `app`, cada foto
+  `<foto>.jpg|jpeg|png` con su `<foto>.json` de cajas (el mismo formato) aparece en la sección
+  "Fotos propias" de la galería y se analiza con esas cajas; sin JSON se abre directamente en el
+  modo de dibujo. La carpeta se cambia con `OWN_GALLERY_DIR`. No existe en el repositorio y está
+  en `.gitignore`: las fotos pueden tener personas y placas y el repositorio es público. Sin la
+  carpeta, la galería muestra solo imágenes del dataset.
 
 ### Galería de demo
 
@@ -722,7 +721,7 @@ frames se agrupan por clima y la galería se desplaza dentro de su panel.
   ```
 
 - Variables de entorno: `MODEL_PATH` (por defecto `models/best.onnx`), `DATA_ROOT` (datos para
-  la galería), `OWN_GALLERY_DIR` (por defecto `app/galeria_propia`), `FEEDBACK_PATH` (por defecto
+  la galería), `OWN_GALLERY_DIR` (por defecto la carpeta `galeria_propia` dentro de `app`), `FEEDBACK_PATH` (por defecto
   `app/feedback.jsonl`) y `SHOW_GROUND_TRUTH` (desactivada por defecto; ver abajo).
 - Endpoints: `GET /` (dashboard), `GET /api/models`, `GET /api/model`, `GET /api/gallery`,
   `GET /api/gallery/{id}/image`, `POST /api/predict/frame`, `POST /api/predict/patch`,

@@ -16,8 +16,7 @@ models/*
 app/feedback.jsonl
 
 # Fotos propias de la galería local (tienen personas y placas: no se versionan)
-app/galeria_propia/*
-!app/galeria_propia/LEEME.md
+app/galeria_propia/
 
 # Python
 __pycache__/
