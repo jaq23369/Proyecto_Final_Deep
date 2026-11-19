@@ -11,5 +11,10 @@
   "centro_medio_muestra_global": 0.3104114830493927,
   "centro_medio_errores": 0.25391972064971924,
   "fidelidad_top_menos_azar": 2.958771550629218,
-  "fidelidad_pct_top_mayor_azar": 93.05555555555556
+  "fidelidad_pct_top_mayor_azar": 93.05555555555556,
+  "corr_gradcam_capa_11": 0.8677361492773212,
+  "corr_gradcam_capa_8": 0.20905817713439273,
+  "corr_gradcam_capa_3": 0.10074206712953683,
+  "corr_oclusion_ventana_28": 0.5713570649685695,
+  "corr_oclusion_ventana_84": 0.46924265304176827
 }
