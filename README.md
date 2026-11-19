@@ -620,11 +620,20 @@ siempre (el flag existe, pero el script termina con error). Opciones: `--out`, `
 App FastAPI (`app/main.py`) con un dashboard HTML (`app/static/`) que clasifica cada espacio en
 CPU (`app/inference.py`): con ONNX Runtime para los modelos de deep learning y con HOG +
 regresión logística para el baseline clásico. El modelo por defecto es `models/best.onnx` +
-`models/best.json`. Tiene tres modos: **Tu parqueo: dibujar espacios** (foto de cualquier
-parqueo en la que el usuario dibuja los espacios), **Cámara de CNR-EXT** (frame completo de una
-de las 9 cámaras del dataset → mapa del parqueo con sus cajas fijas) y **Un espacio**. Muestra
-la confianza, el estado "por verificar", los umbrales de cada escenario (comercial / UVG), qué
-modelo produjo el resultado y un botón "este espacio estaba ocupado". El diagrama del sistema
+`models/best.json`. La forma principal de usarla es la **galería**: solo imágenes del dataset
+que el modelo nunca vio al entrenar (ver [Galería de demo](#galería-de-demo)). Además tiene tres
+modos para subir imágenes: **Cámara de CNR-EXT** (frame completo de una de las 9 cámaras del
+dataset → mapa del parqueo con sus cajas fijas), **Dibujar espacios** (el usuario marca los
+espacios sobre otra foto) y **Un espacio**. Muestra la confianza, el estado "por verificar", los
+umbrales de cada escenario (comercial / UVG), qué modelo produjo el resultado, el **tiempo que
+ahorra cada conductor** en el parqueo UVG con el modelo elegido y un botón "este espacio estaba
+ocupado".
+
+El panel **Tiempo del conductor** sale del modelo de valor en validación: minutos ahorrados por
+llegada = horas ahorradas por semestre (`val_hours_uvg` de `results/iteraciones.csv`) × 60 /
+(llegadas por día × días del semestre de `configs/value/uvg.yaml`). Muestra también el tiempo
+base sin sistema (`t_base_min`), el tiempo con el modelo y la diferencia en segundos frente a B1.
+El tiempo base viene de la literatura y de estimaciones; se reemplaza con mediciones en campo. El diagrama del sistema
 desplegado, las métricas operativas y el plan de monitoreo están en
 [docs/arquitectura.md](docs/arquitectura.md).
 
@@ -665,22 +674,23 @@ salió.
   val_value_comercial, thresholds, available, error}], default}`; `GET /api/model` con el
   parámetro `model=<id>` da el detalle de un modelo; los tres endpoints de predicción
   (`/api/predict/frame`, `/api/predict/patch` y `/api/predict/custom`) aceptan el campo opcional
-  `model` (un id de la lista) y la respuesta trae `model: {id, label, name, run_id, kind}`. Un id desconocido
-  devuelve 400 con las opciones válidas.
+  `model` (un id de la lista) y la respuesta trae `model: {id, label, name, run_id, kind}`. Un
+  id desconocido devuelve 400 con las opciones válidas. `GET /api/model` incluye además
+  `time_benefit` (minutos ahorrados por conductor en el escenario UVG; `null` si el modelo no
+  está en `results/iteraciones.csv`).
 
 ### Fotos propias y galería local
 
 Las cajas fijas del modo **Cámara de CNR-EXT** solo coinciden con las 9 cámaras del dataset
 (1000×750). Con fotos de otro parqueo (por ejemplo, el de la UVG) caen en cualquier lado; por
-eso la app avisa si la foto no mide 1000×750 y la pestaña recomendada es **Tu parqueo: dibujar
-espacios**. Ahí conviene dibujar cada caja ajustada a un solo espacio (sin topes de concreto ni
+eso la app avisa si la foto no mide 1000×750 y recomienda la pestaña **Dibujar espacios**. Ahí conviene dibujar cada caja ajustada a un solo espacio (sin topes de concreto ni
 árboles). El modelo se entrenó con cámaras elevadas que miran en diagonal, de día: las fotos de
 noche o a nivel del suelo están fuera de dominio y se esperan más "por verificar".
 
 - **Guardar cajas** descarga un JSON `{image: <nombre>, boxes: [{slot_id, x, y, w, h}]}` en
   píxeles de la imagen original; **Cargar cajas** lee ese JSON y deja las cajas editables.
 - **Galería local:** cada foto `app/galeria_propia/<foto>.jpg|jpeg|png` con su `<foto>.json` de
-  cajas (el mismo formato) aparece en la sección "Parqueo UVG (fotos propias)" de la galería y se
+  cajas (el mismo formato) aparece en la sección "Fotos propias" de la galería (oculta si no hay) y se
   analiza con esas cajas; sin JSON se abre directamente en el modo de dibujo. La carpeta se
   cambia con `OWN_GALLERY_DIR`. Su contenido **no se versiona** (solo
   [app/galeria_propia/LEEME.md](app/galeria_propia/LEEME.md), que explica el formato): las fotos
@@ -689,11 +699,11 @@ noche o a nivel del suelo están fuera de dominio y se esperan más "por verific
 ### Galería de demo
 
 `build_gallery.py` elige los ejemplos de forma determinista con metadatos, sin predicciones ni
-métricas de test: un frame de fecha de test por cámara (1-9) y por clima (soleado, nublado,
-lluvia), el más cercano a una hora objetivo y con etiquetas cerca de esa hora (sin mirar sus
-valores), más dos casos difíciles (temprano con lluvia y al atardecer); 8 patches por cámara de
-CNRPark A/B (4 de la carpeta `busy` y 4 de `free`); y dos mosaicos (uno de A y uno de B) de 12
-patches de CNRPark distintos (6 y 6) en una cuadrícula 4×3, que la app compone al vuelo con
+métricas de test: dos frames de fecha de test por cámara (1-9) y por clima (soleado, nublado,
+lluvia), en lo posible uno en cada mitad del día, los más cercanos a una hora objetivo y con etiquetas cerca de
+esa hora (sin mirar sus valores), más dos casos difíciles (temprano con lluvia y al atardecer):
+56 frames; 8 patches por cámara de CNRPark A/B (4 de la carpeta `busy` y 4 de `free`); y cuatro
+mosaicos (dos de A y dos de B) de 12 patches de CNRPark distintos (6 y 6) en una cuadrícula 4×3, que la app compone al vuelo con
 celdas de 150×150 y analiza celda por celda. Guarda rutas relativas a `DATA_ROOT` (las imágenes
 no se copian al repo). Opción: `--out` (por defecto `app/gallery.json`). En el dashboard los
 frames se agrupan por clima y la galería se desplaza dentro de su panel.

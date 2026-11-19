@@ -2,12 +2,14 @@
 
 Contenido:
 - Frames completos de CNR-EXT de **fechas de test** (ninguna fecha de test aparece en train
-  ni en val): uno por cámara (1-9) y por clima (soleado, nublado, lluvia), 27 en total, más
-  dos casos difíciles (temprano con lluvia y al atardecer).
+  ni en val): dos por cámara (1-9) y por clima (soleado, nublado, lluvia), con horas objetivo
+  en mitades distintas del día (si esa hora no existe se toma la más cercana), 54 en total, más
+  dos casos difíciles (temprano con lluvia y al atardecer): 56 frames.
 - Patches de CNRPark A/B (otro parqueo y otras cámaras: fuera de dominio): 8 por cámara,
   4 de la carpeta ``busy`` y 4 de ``free``.
-- Dos mosaicos (uno de A y uno de B): cuadrícula 4x3 de 12 patches de CNRPark (6 ``busy`` y
-  6 ``free``, distintos de los anteriores). La app compone la imagen al vuelo y usa cada celda
+- Cuatro mosaicos (dos de A y dos de B: ``mosaic-a``, ``mosaic-a2``, ``mosaic-b``, ``mosaic-b2``):
+  cuadrícula 4x3 de 12 patches de CNRPark (6 ``busy`` y 6 ``free``, sin repetir entre mosaicos
+  ni con los patches sueltos). La app compone la imagen al vuelo y usa cada celda
   como un espacio.
 
 La selección es determinista y usa solo metadatos (clima, cámara, hora y carpeta de la
@@ -44,6 +46,7 @@ WEATHERS: tuple[str, ...] = ("SUNNY", "OVERCAST", "RAINY")
 CAMERAS: tuple[int, ...] = tuple(range(1, 10))
 PATCHES_PER_FOLDER = 4          # 4 busy + 4 free por cámara de CNRPark
 MOSAIC_PER_FOLDER = 6           # 6 busy + 6 free por mosaico
+MOSAICS_PER_CAMERA = 2          # mosaicos distintos por cámara de CNRPark
 MOSAIC_GRID = {"cols": 4, "rows": 3}
 MOSAIC_CELL = 150
 FOLDERS: tuple[str, ...] = ("busy", "free")
@@ -78,15 +81,21 @@ HARD_SPECS: tuple[FrameSpec, ...] = (
 )
 
 
+def _second_time(hhmm: str) -> str:
+    """Segunda hora del mismo par (cámara, clima): la otra mitad del día."""
+    return "15:00" if _minutes(hhmm) < _minutes("12:30") else "09:00"
+
+
 def frame_specs() -> list[FrameSpec]:
-    """Uno por clima y cámara (27) y después los casos difíciles."""
-    specs = []
+    """Uno por clima y cámara (27), un segundo a otra hora del día (27) y los casos difíciles."""
+    first, second = [], []
     for w_idx, weather in enumerate(WEATHERS):
         for camera in CAMERAS:
             default = TARGET_TIMES[(camera - 1 + 3 * w_idx) % len(TARGET_TIMES)]
             target, note = CURATED.get((weather, camera), (default, ""))
-            specs.append(FrameSpec(weather, camera, target, note))
-    return specs + list(HARD_SPECS)
+            first.append(FrameSpec(weather, camera, target, note))
+            second.append(FrameSpec(weather, camera, _second_time(target)))
+    return first + second + list(HARD_SPECS)
 
 
 def _minutes(hhmm: str) -> int:
@@ -153,20 +162,24 @@ def _folder(path: str) -> str:
     return Path(path).parts[-2]
 
 
-def split_patches(cam_df: pd.DataFrame, rng: np.random.Generator) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """(patches sueltos, celdas del mosaico) de una cámara, balanceados por carpeta y sin repetir."""
+def split_patches(cam_df: pd.DataFrame, rng: np.random.Generator) -> tuple[pd.DataFrame, list[pd.DataFrame]]:
+    """(patches sueltos, celdas de cada mosaico) de una cámara, balanceados por carpeta y sin repetir."""
     singles: dict[str, pd.DataFrame] = {}
     cells: list[pd.DataFrame] = []
     folders = cam_df["path"].map(_folder)
     for folder in FOLDERS:
         group = cam_df[folders == folder]
-        idx = rng.choice(len(group), size=PATCHES_PER_FOLDER + MOSAIC_PER_FOLDER, replace=False)
+        n_cells = MOSAIC_PER_FOLDER * MOSAICS_PER_CAMERA
+        idx = rng.choice(len(group), size=PATCHES_PER_FOLDER + n_cells, replace=False)
         singles[folder] = group.iloc[np.sort(idx[:PATCHES_PER_FOLDER])]
-        cells.append(group.iloc[np.sort(idx[PATCHES_PER_FOLDER:])])
-    # Patches sueltos alternando busy/free; celdas del mosaico en un orden aleatorio fijo
+        cells.append(group.iloc[idx[PATCHES_PER_FOLDER:]])
+    # Patches sueltos alternando busy/free; celdas de cada mosaico en un orden aleatorio fijo
     single = pd.concat([singles[f].iloc[[i]] for i in range(PATCHES_PER_FOLDER) for f in FOLDERS])
-    mosaic = pd.concat(cells)
-    return single, mosaic.iloc[rng.permutation(len(mosaic))]
+    mosaics = []
+    for m in range(MOSAICS_PER_CAMERA):
+        part = pd.concat([c.iloc[m * MOSAIC_PER_FOLDER:(m + 1) * MOSAIC_PER_FOLDER] for c in cells])
+        mosaics.append(part.iloc[rng.permutation(len(part))])
+    return single, mosaics
 
 
 def patch_item(row: pd.Series) -> dict[str, Any]:
@@ -186,14 +199,15 @@ def patch_item(row: pd.Series) -> dict[str, Any]:
     }
 
 
-def mosaic_item(camera: str, cells: pd.DataFrame) -> dict[str, Any]:
+def mosaic_item(camera: str, cells: pd.DataFrame, number: int = 1) -> dict[str, Any]:
     """Mosaico de CNRPark: la app compone la imagen y usa cada celda como un espacio."""
+    suffix = "" if number == 1 else str(number)
     return {
-        "id": f"mosaic-{camera.lower()}",
+        "id": f"mosaic-{camera.lower()}{suffix}",
         "kind": "mosaic",
         "subset": "CNRPark",
         "camera": camera,
-        "title": f"CNRPark {camera}: mosaico de {len(cells)} espacios",
+        "title": f"CNRPark {camera}: mosaico {number} de {len(cells)} espacios",
         "note": "otro parqueo: patches de 150×150 en una cuadrícula 4×3 (fuera de dominio)",
         "split_origin": "CNRPark A/B (nunca usado para entrenar)",
         "grid": dict(MOSAIC_GRID),
@@ -212,9 +226,9 @@ def build_patches() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     singles: list[dict[str, Any]] = []
     mosaics: list[dict[str, Any]] = []
     for cam in ("A", "B"):
-        single, cells = split_patches(ood[ood["camera"] == cam], rng)
+        single, cell_groups = split_patches(ood[ood["camera"] == cam], rng)
         singles += [patch_item(row) for _, row in single.iterrows()]
-        mosaics.append(mosaic_item(cam, cells))
+        mosaics += [mosaic_item(cam, cells, n) for n, cells in enumerate(cell_groups, start=1)]
     return singles, mosaics
 
 

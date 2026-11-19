@@ -189,6 +189,31 @@ function renderModel() {
   box.replaceChildren(...parts);
 }
 
+function renderTimeBenefit() {
+  const box = $("time-benefit");
+  const tb = ui.model && ui.model.time_benefit;
+  if (!tb) {
+    box.className = "hint";
+    box.textContent = "Sin datos de tiempo para este modelo (results/iteraciones.csv).";
+    return;
+  }
+  box.className = "time-benefit";
+  const big = el("p", "time-big", `${fmt(tb.minutos_ahorrados, 1)} min`);
+  const rows = [
+    ["Sin el sistema", `${fmt(tb.t_base_min, 1)} min buscando espacio`],
+    ["Con este modelo", `${fmt(tb.minutos_con_sistema, 1)} min`],
+    ["Horas por semestre", `${Math.round(tb.horas_semestre).toLocaleString("es-GT")} h (${tb.llegadas_dia} llegadas/día × ${tb.dias_semestre} días)`],
+  ];
+  if (tb.segundos_vs_b1 !== undefined) {
+    rows.push(["Frente a B1 (clásico)", `${tb.segundos_vs_b1 >= 0 ? "+" : ""}${fmt(tb.segundos_vs_b1, 1)} s por conductor`]);
+  }
+  const dl = el("dl", "kv");
+  for (const [k, v] of rows) dl.append(el("dt", "", k), el("dd", "", v));
+  box.replaceChildren(
+    el("p", "hint", "Ahorro por conductor que llega al parqueo UVG"), big, dl,
+    el("p", "hint", "Validación con el modelo de valor; tiempo base de literatura (Shoup, 2006), por confirmar con mediciones en el campus."));
+}
+
 async function loadModel() {
   const wanted = ui.modelId;
   try {
@@ -199,9 +224,11 @@ async function loadModel() {
     hideBanner();
     renderModel();
     renderThresholds();
+    renderTimeBenefit();
   } catch (error) {
     if (wanted !== ui.modelId) return;
     ui.model = null;
+    renderTimeBenefit();
     showBanner(error.message, error.status === 503 ? "error" : "warn");
     $("model-info").textContent = "Sin modelo cargado.";
   }
@@ -294,8 +321,9 @@ async function loadGallery() {
     ui.gallery = data.items;
     const byKind = (kind) => data.items.filter((item) => item.kind === kind);
     renderFrameGroups(byKind("frame"));
-    fillThumbs("gallery-own", byKind("own"),
-      "Copia fotos (y su JSON de cajas) en app/galeria_propia/ para verlas aquí; ver LEEME.md.");
+    const own = byKind("own");
+    fillThumbs("gallery-own", own);
+    $("gallery-own-wrap").classList.toggle("hidden", !own.length);
     fillThumbs("gallery-mosaics", byKind("mosaic"));
     fillThumbs("gallery-patches", byKind("patch"));
     if (!data.items.length) $("gallery-frames").textContent = "La galería está vacía (genera app/gallery.json).";

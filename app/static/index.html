@@ -36,15 +36,32 @@
   <main class="layout">
     <aside class="sidebar">
       <section class="card">
+        <h2>Galería</h2>
+        <p class="hint">Solo imágenes que el modelo nunca vio al entrenar.</p>
+        <div class="gallery-scroll">
+          <h3>Frames completos (fechas de prueba de CNR-EXT)</h3>
+          <div id="gallery-frames"></div>
+          <h3>Otro parqueo: mosaicos de 12 espacios (CNRPark A/B)</h3>
+          <div id="gallery-mosaics" class="thumbs"></div>
+          <h3>Otro parqueo: un espacio (CNRPark A/B)</h3>
+          <div id="gallery-patches" class="thumbs small"></div>
+          <div id="gallery-own-wrap" class="hidden">
+            <h3>Fotos propias</h3>
+            <div id="gallery-own" class="thumbs"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Tu imagen</h2>
         <div class="tabs" role="tablist">
-          <button type="button" class="tab active" data-tab="custom" role="tab">Tu parqueo: dibujar espacios</button>
-          <button type="button" class="tab" data-tab="frame" role="tab">Cámara de CNR-EXT</button>
+          <button type="button" class="tab active" data-tab="frame" role="tab">Cámara de CNR-EXT</button>
+          <button type="button" class="tab" data-tab="custom" role="tab">Dibujar espacios</button>
           <button type="button" class="tab" data-tab="patch" role="tab">Un espacio</button>
         </div>
 
-        <div id="form-custom" class="tab-body" data-tab="custom">
-          <p class="hint">Para fotos de cualquier parqueo (por ejemplo, el de la UVG). Sube la foto (o usa la imagen actual) y dibuja un rectángulo sobre cada espacio arrastrando el mouse.</p>
+        <div id="form-custom" class="tab-body hidden" data-tab="custom">
+          <p class="hint">Para marcar los espacios a mano sobre otra foto. Sube la foto (o usa la imagen actual) y dibuja un rectángulo sobre cada espacio arrastrando el mouse.</p>
           <ul class="tips">
             <li>El modelo se entrenó con cámaras elevadas que miran el parqueo en diagonal, de día.</li>
             <li>Dibuja cada caja ajustada a un solo espacio, sin incluir topes de concreto ni árboles.</li>
@@ -66,10 +83,10 @@
           <button type="button" id="draw-edit" class="secondary hidden">Editar cajas</button>
         </div>
 
-        <form id="form-frame" class="tab-body hidden" data-tab="frame">
+        <form id="form-frame" class="tab-body" data-tab="frame">
           <p class="callout">Solo para fotos de las <strong>9 cámaras de CNR-EXT</strong> (1000×750): las cajas de los
-            espacios son fijas por cámara. Para cualquier otro parqueo (por ejemplo, la UVG) usa
-            <strong>Tu parqueo: dibujar espacios</strong>; aquí las cajas caerían en cualquier lado.</p>
+            espacios son fijas por cámara. Para otra foto usa <strong>Dibujar espacios</strong>; aquí las
+            cajas caerían en cualquier lado.</p>
           <label>Imagen <input type="file" name="file" accept="image/*" required></label>
           <label>Cámara
             <select name="camera">
@@ -86,21 +103,6 @@
           <label>Imagen <input type="file" name="file" accept="image/*" required></label>
           <button type="submit" class="primary">Analizar espacio</button>
         </form>
-      </section>
-
-      <section class="card">
-        <h2>Galería</h2>
-        <p class="hint">Solo imágenes que el modelo nunca vio al entrenar.</p>
-        <div class="gallery-scroll">
-          <h3>Parqueo UVG (fotos propias)</h3>
-          <div id="gallery-own" class="thumbs"></div>
-          <h3>Frames completos (fechas de prueba de CNR-EXT)</h3>
-          <div id="gallery-frames"></div>
-          <h3>Otro parqueo: mosaicos de 12 espacios (CNRPark A/B)</h3>
-          <div id="gallery-mosaics" class="thumbs"></div>
-          <h3>Otro parqueo: un espacio (CNRPark A/B)</h3>
-          <div id="gallery-patches" class="thumbs small"></div>
-        </div>
       </section>
     </aside>
 
@@ -137,6 +139,11 @@
         </div>
         <p class="latency">Latencia: <strong id="latency">–</strong></p>
         <div id="gt-summary" class="gt-summary hidden"></div>
+      </section>
+
+      <section class="card">
+        <h2>Tiempo del conductor</h2>
+        <div id="time-benefit" class="hint">–</div>
       </section>
 
       <section class="card">

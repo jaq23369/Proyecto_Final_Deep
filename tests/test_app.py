@@ -310,11 +310,11 @@ def test_api_gallery(client):
     assert r.status_code == 200
     body = r.json()
     items = body["items"]
-    assert len(items) == 47  # sin fotos propias (OWN_GALLERY_DIR vacía)
-    assert sum(it["kind"] == "frame" for it in items) == 29
+    assert len(items) == 76  # sin fotos propias (OWN_GALLERY_DIR vacía)
+    assert sum(it["kind"] == "frame" for it in items) == 56
     assert sum(it["kind"] == "patch" for it in items) == 16
-    assert sum(it["kind"] == "mosaic" for it in items) == 2
-    assert len({it["id"] for it in items}) == 47
+    assert sum(it["kind"] == "mosaic" for it in items) == 4
+    assert len({it["id"] for it in items}) == 76
     for it in items:
         assert it["image_url"] == f"/api/gallery/{it['id']}/image"
         assert "path" not in it and "cells" not in it
@@ -346,7 +346,7 @@ def test_gallery_json_paths_are_relative():
             assert isinstance(p, str) and p
             assert not Path(p).is_absolute() and not p.startswith("/")
             assert ":" not in p and "\\" not in p and ".." not in Path(p).parts
-    assert n_paths == 29 + 16 + 2 * 12
+    assert n_paths == 56 + 16 + 4 * 12
 
 
 @real_data
@@ -908,9 +908,9 @@ def _split_dates(name: str) -> set[str]:
 def test_gallery_frames_are_from_unseen_dates():
     seen = _split_dates("train") | _split_dates("val")
     frames_items = [it for it in _gallery() if it["kind"] == "frame"]
-    assert len(frames_items) == 29
-    assert len({it["id"] for it in frames_items}) == 29
-    assert len({it["path"] for it in frames_items}) == 29
+    assert len(frames_items) == 56
+    assert len({it["id"] for it in frames_items}) == 56
+    assert len({it["path"] for it in frames_items}) == 56
     for it in frames_items:
         assert it["date"] not in seen
         assert it["subset"] == "CNR-EXT"
@@ -920,13 +920,19 @@ def test_gallery_frames_are_from_unseen_dates():
 
 
 def test_gallery_frames_cover_cameras_and_weathers():
-    """27 = 9 cámaras x 3 climas (una vez cada par) + 2 casos difíciles marcados."""
+    """54 = 9 cámaras x 3 climas (dos frames por par, uno en cada mitad del día) + 2 difíciles."""
     frames_items = [it for it in _gallery() if it["kind"] == "frame"]
     regular = [it for it in frames_items if not it.get("hard")]
     hard = [it for it in frames_items if it.get("hard")]
-    assert len(regular) == 27 and len(hard) == 2
+    assert len(regular) == 54 and len(hard) == 2
     pairs = [(it["camera"], it["weather"]) for it in regular]
-    assert sorted(pairs) == sorted((c, w) for c in range(1, 10) for w in ("SUNNY", "OVERCAST", "RAINY"))
+    expected = [(c, w) for c in range(1, 10) for w in ("SUNNY", "OVERCAST", "RAINY")]
+    assert sorted(pairs) == sorted(expected * 2)
+    for pair in expected:
+        # dos frames distintos del mismo par (la segunda hora objetivo es la otra mitad del día;
+        # si ese día no hay frames a esa hora, se toma el más cercano disponible)
+        ids = {it["id"] for it in regular if (it["camera"], it["weather"]) == pair}
+        assert len(ids) == 2, pair
     for it in hard:
         assert it["hard"] is True and "difícil" in it["note"]
     for it in frames_items:
@@ -951,8 +957,9 @@ def test_gallery_patches_are_cnrpark_ab():
 def test_gallery_mosaics_are_balanced_and_do_not_repeat_patches():
     mosaics = [it for it in _gallery() if it["kind"] == "mosaic"]
     singles = {it["path"] for it in _gallery() if it["kind"] == "patch"}
-    assert len(mosaics) == 2
-    assert sorted(m["camera"] for m in mosaics) == ["A", "B"]
+    assert len(mosaics) == 4
+    assert sorted(m["camera"] for m in mosaics) == ["A", "A", "B", "B"]
+    assert sorted(m["id"] for m in mosaics) == ["mosaic-a", "mosaic-a2", "mosaic-b", "mosaic-b2"]
     seen: set[str] = set()
     for m in mosaics:
         assert m["subset"] == "CNRPark"

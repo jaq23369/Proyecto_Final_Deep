@@ -582,7 +582,7 @@ def test_own_photo_with_boxes_is_listed_and_analyzed(client, model_dir, own_dir,
     r = client.get("/api/gallery")
     assert r.status_code == 200
     items = r.json()["items"]
-    assert len(items) == 48
+    assert len(items) == 77
     it = own_entry(client, "own-parqueo_uvg")
     assert it is not None
     assert it["kind"] == "own" and it["subset"] == "UVG" and it["filename"] == "parqueo_uvg.png"
@@ -830,7 +830,7 @@ def test_mosaic_missing_cell_gives_404(client, mosaic_root, tmp_path):
 @pytest.mark.data
 @pytest.mark.skipif(not HAS_DATA, reason="dataset no disponible en DATA_ROOT")
 def test_real_mosaics(client, monkeypatch):
-    for gid in ("mosaic-a", "mosaic-b"):
+    for gid in ("mosaic-a", "mosaic-a2", "mosaic-b", "mosaic-b2"):
         r = client.get(f"/api/gallery/{gid}/image")
         assert r.status_code == 200
         assert Image.open(io.BytesIO(r.content)).size == (600, 450)
@@ -866,3 +866,43 @@ def test_own_gallery_is_gitignored_except_readme():
     names = [line[3:].strip().strip('"') for line in status.stdout.splitlines() if line.strip()]
     assert all(n == "app/galeria_propia/LEEME.md" for n in names), names
     assert (REPO / "app" / "galeria_propia" / "LEEME.md").is_file()
+
+
+# ================================================================ tiempo del conductor
+
+
+def test_time_benefit_matches_iterations_table(tmp_path, monkeypatch):
+    import app.main as main_mod
+
+    csv_path = tmp_path / "iteraciones.csv"
+    csv_path.write_text("name,val_hours_uvg\nb1_hog_lr,7881\nmnv3_ft_cost,7978\nsin_horas,\n", encoding="utf-8")
+    monkeypatch.setattr(main_mod, "ITERATIONS_CSV", csv_path)
+    tb = main_mod.time_benefit("mnv3_ft_cost")
+    arrivals = 900 * 90  # configs/value/uvg.yaml
+    assert tb["escenario"] == "uvg" and tb["t_base_min"] == 7.0
+    assert tb["minutos_ahorrados"] == round(7978 * 60 / arrivals, 2)
+    assert tb["minutos_con_sistema"] == round(7.0 - 7978 * 60 / arrivals, 2)
+    assert tb["horas_semestre"] == 7978
+    assert tb["segundos_vs_b1"] == round((7978 - 7881) * 3600 / arrivals, 1)
+    assert "segundos_vs_b1" not in main_mod.time_benefit("b1_hog_lr")
+    assert main_mod.time_benefit("sin_horas") is None
+    assert main_mod.time_benefit("desconocido") is None
+    assert main_mod.time_benefit(None) is None
+    monkeypatch.setattr(main_mod, "ITERATIONS_CSV", tmp_path / "no_existe.csv")
+    assert main_mod.time_benefit("mnv3_ft_cost") is None
+
+
+def test_api_model_includes_time_benefit_for_real_best_model():
+    import json as _json
+
+    card_path = paths.repo_root() / "models" / "best.json"
+    if not card_path.is_file():
+        pytest.skip("sin models/best.json")
+    from fastapi.testclient import TestClient
+
+    import app.main as main_mod
+
+    name = _json.loads(card_path.read_text(encoding="utf-8")).get("name")
+    body = TestClient(main_mod.app).get("/api/model", params={"model": "best"}).json()
+    assert "time_benefit" in body
+    assert body["time_benefit"] == main_mod.time_benefit(name)

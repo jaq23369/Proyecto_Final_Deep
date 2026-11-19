@@ -58,6 +58,7 @@ from app.inference import (
     resolve_model,
 )
 from cupo import frames, paths
+from cupo.value_model import load_scenario
 
 logger = logging.getLogger("cupo.app")
 
@@ -90,7 +91,7 @@ UPLOAD_SOURCE = "upload"
 OWN_PREFIX = "own-"
 OWN_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 OWN_NAME_RE = re.compile(r"^\w[\w .-]{0,79}\Z")
-DRAW_TAB = "'Tu parqueo: dibujar espacios'"
+DRAW_TAB = "'Dibujar espacios'"
 
 GT_NOTE = ("Etiquetas reales del dataset (SHOW_GROUND_TRUTH=1), solo como comparación visual; "
            "no se usan para elegir modelos ni umbrales.")
@@ -775,6 +776,60 @@ def models() -> dict[str, Any]:
     return {"models": list_models(), "default": default_model_id()}
 
 
+ITERATIONS_CSV = paths.results_dir() / "iteraciones.csv"
+B1_NAME = "b1_hog_lr"
+
+
+@lru_cache(maxsize=4)
+def _hours_uvg_cached(csv_path: str, mtime: float) -> dict[str, float]:
+    """``name`` → horas ahorradas por semestre en val (escenario UVG) de la tabla de iteraciones."""
+    import csv
+
+    out: dict[str, float] = {}
+    with open(csv_path, encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            try:
+                out[row["name"]] = float(row["val_hours_uvg"])
+            except (KeyError, TypeError, ValueError):
+                continue
+    return out
+
+
+def hours_uvg_by_name() -> dict[str, float]:
+    try:
+        return _hours_uvg_cached(str(ITERATIONS_CSV), ITERATIONS_CSV.stat().st_mtime)
+    except OSError:
+        return {}
+
+
+def time_benefit(name: Any) -> dict[str, Any] | None:
+    """Minutos que ahorra cada conductor en el parqueo UVG con este modelo (val, modelo de valor).
+
+    minutos por llegada = horas ahorradas por semestre × 60 / (llegadas por día × días del semestre).
+    """
+    hours = hours_uvg_by_name()
+    if not isinstance(name, str) or name not in hours:
+        return None
+    params = load_scenario("uvg")["params"]
+    arrivals = float(params["llegadas_dia"]) * float(params["dias_semestre"])
+    t_base = float(params["t_base_min"])
+    saved = hours[name] * 60.0 / arrivals
+    # t_base − ahorro = T_sys del modelo de valor porque en UVG no hay abandono (abandono_base = 0)
+    out: dict[str, Any] = {
+        "escenario": "uvg",
+        "t_base_min": t_base,
+        "minutos_ahorrados": round(saved, 2),
+        "minutos_con_sistema": round(max(t_base - saved, 0.0), 2),
+        "horas_semestre": round(hours[name]),
+        "llegadas_dia": int(params["llegadas_dia"]),
+        "dias_semestre": int(params["dias_semestre"]),
+        "fuente": "results/iteraciones.csv (validación) y configs/value/uvg.yaml",
+    }
+    if name != B1_NAME and B1_NAME in hours:
+        out["segundos_vs_b1"] = round((hours[name] - hours[B1_NAME]) * 3600.0 / arrivals, 1)
+    return out
+
+
 @app.get("/api/model")
 def model_info(model: str | None = None) -> dict[str, Any]:
     pred = store.get(parse_model(model))
@@ -807,6 +862,7 @@ def model_info(model: str | None = None) -> dict[str, Any]:
         "thresholds": pred.thresholds,
         "val_metrics": card.get("val_metrics_summary"),
         "benchmark": bench,
+        "time_benefit": time_benefit(card.get("name")),
         "exported_at": card.get("exported_at"),
         "rule": "LIBRE si p < t_L; OCUPADO si p >= t_H; POR VERIFICAR en el resto (p = P(ocupado)).",
     }

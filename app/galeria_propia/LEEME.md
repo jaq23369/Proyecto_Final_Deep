@@ -13,7 +13,7 @@ placas, y el repositorio es público.
 
 ```json
 {
-  "image": "Foto_3.jpeg",
+  "image": "foto.jpeg",
   "boxes": [
     {"slot_id": "1", "x": 185, "y": 645, "w": 152, "h": 148},
     {"slot_id": "2", "x": 372, "y": 642, "w": 148, "h": 148}
@@ -26,7 +26,7 @@ placas, y el repositorio es público.
 ## Uso
 
 1. Copia la foto a esta carpeta y recarga la app: aparece en la galería, en la sección
-   "Parqueo UVG (fotos propias)".
+   "Fotos propias" (solo aparece si hay alguna).
 2. Si no tiene `.json`, se abre directamente en el modo de dibujo. Dibuja una caja ajustada a
    cada espacio (sin topes de concreto ni árboles) y usa **Guardar cajas**: descarga el
    `.json` con este formato; guárdalo aquí con el mismo nombre que la foto.
