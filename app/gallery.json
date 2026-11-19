@@ -1,5 +1,5 @@
 {
-  "description": "Galería de demo: solo imágenes nunca vistas en el entrenamiento (frames de fechas de test de CNR-EXT y patches de CNRPark A/B).",
+  "description": "Galería de demo: solo imágenes nunca vistas en el entrenamiento (frames de fechas de test de CNR-EXT y patches y mosaicos de CNRPark A/B).",
   "generated_by": "scripts/build_gallery.py",
   "paths_relative_to": "DATA_ROOT",
   "seed": 0,
@@ -18,6 +18,45 @@
       "split_origin": "fecha de test (nunca vista en entrenamiento)"
     },
     {
+      "id": "ext-c2-2016-01-16-1034",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera2/2016-01-16_1034.jpg",
+      "camera": 2,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "10:34",
+      "title": "Cámara 2, soleado, 10:34",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c3-2016-01-16-1135",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera3/2016-01-16_1135.jpg",
+      "camera": 3,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "11:35",
+      "title": "Cámara 3, soleado, 11:35",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c4-2016-01-16-1237",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera4/2016-01-16_1237.jpg",
+      "camera": 4,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "12:37",
+      "title": "Cámara 4, soleado, 12:37",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
       "id": "ext-c5-2015-12-17-1456",
       "kind": "frame",
       "subset": "CNR-EXT",
@@ -31,6 +70,71 @@
       "split_origin": "fecha de test (nunca vista en entrenamiento)"
     },
     {
+      "id": "ext-c6-2015-12-17-1421",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera6/2015-12-17_1421.jpg",
+      "camera": 6,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "14:21",
+      "title": "Cámara 6, soleado, 14:21",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c7-2015-12-17-1524",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera7/2015-12-17_1524.jpg",
+      "camera": 7,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "15:24",
+      "title": "Cámara 7, soleado, 15:24",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c8-2016-01-16-1050",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera8/2016-01-16_1050.jpg",
+      "camera": 8,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "10:50",
+      "title": "Cámara 8, soleado, 10:50",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c9-2015-12-17-1254",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera9/2015-12-17_1254.jpg",
+      "camera": 9,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "12:54",
+      "title": "Cámara 9, soleado, 12:54",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c1-2015-12-03-1241",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera1/2015-12-03_1241.jpg",
+      "camera": 1,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "12:41",
+      "title": "Cámara 1, nublado, 12:41",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
       "id": "ext-c2-2015-12-03-1114",
       "kind": "frame",
       "subset": "CNR-EXT",
@@ -40,6 +144,58 @@
       "date": "2015-12-03",
       "time": "11:14",
       "title": "Cámara 2, nublado, 11:14",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c3-2015-12-03-1416",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera3/2015-12-03_1416.jpg",
+      "camera": 3,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "14:16",
+      "title": "Cámara 3, nublado, 14:16",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c4-2015-12-03-1517",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera4/2015-12-03_1517.jpg",
+      "camera": 4,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "15:17",
+      "title": "Cámara 4, nublado, 15:17",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c5-2015-12-03-1048",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera5/2015-12-03_1048.jpg",
+      "camera": 5,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "10:48",
+      "title": "Cámara 5, nublado, 10:48",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c6-2015-12-03-1249",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera6/2015-12-03_1249.jpg",
+      "camera": 6,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "12:49",
+      "title": "Cámara 6, nublado, 12:49",
       "note": "",
       "split_origin": "fecha de test (nunca vista en entrenamiento)"
     },
@@ -57,6 +213,58 @@
       "split_origin": "fecha de test (nunca vista en entrenamiento)"
     },
     {
+      "id": "ext-c8-2015-12-03-1043",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera8/2015-12-03_1043.jpg",
+      "camera": 8,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "10:43",
+      "title": "Cámara 8, nublado, 10:43",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c9-2015-12-03-1117",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera9/2015-12-03_1117.jpg",
+      "camera": 9,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "11:17",
+      "title": "Cámara 9, nublado, 11:17",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c1-2016-02-12-1540",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera1/2016-02-12_1540.jpg",
+      "camera": 1,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "15:40",
+      "title": "Cámara 1, lluvia, 15:40",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c2-2016-02-12-1105",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera2/2016-02-12_1105.jpg",
+      "camera": 2,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "11:05",
+      "title": "Cámara 2, lluvia, 11:05",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
       "id": "ext-c3-2016-02-12-1006",
       "kind": "frame",
       "subset": "CNR-EXT",
@@ -66,6 +274,71 @@
       "date": "2016-02-12",
       "time": "10:06",
       "title": "Cámara 3, lluvia, 10:06",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c4-2015-12-22-0921",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2015-12-22/camera4/2015-12-22_0921.jpg",
+      "camera": 4,
+      "weather": "RAINY",
+      "date": "2015-12-22",
+      "time": "09:21",
+      "title": "Cámara 4, lluvia, 09:21",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c5-2016-02-12-1030",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera5/2016-02-12_1030.jpg",
+      "camera": 5,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "10:30",
+      "title": "Cámara 5, lluvia, 10:30",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c6-2016-02-12-1124",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera6/2016-02-12_1124.jpg",
+      "camera": 6,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "11:24",
+      "title": "Cámara 6, lluvia, 11:24",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c7-2016-02-12-1225",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera7/2016-02-12_1225.jpg",
+      "camera": 7,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "12:25",
+      "title": "Cámara 7, lluvia, 12:25",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c8-2015-12-22-1325",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2015-12-22/camera8/2015-12-22_1325.jpg",
+      "camera": 8,
+      "weather": "RAINY",
+      "date": "2015-12-22",
+      "time": "13:25",
+      "title": "Cámara 8, lluvia, 13:25",
       "note": "",
       "split_origin": "fecha de test (nunca vista en entrenamiento)"
     },
@@ -83,6 +356,357 @@
       "split_origin": "fecha de test (nunca vista en entrenamiento)"
     },
     {
+      "id": "ext-c1-2016-01-16-1505",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera1/2016-01-16_1505.jpg",
+      "camera": 1,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "15:05",
+      "title": "Cámara 1, soleado, 15:05",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c2-2016-01-16-1504",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera2/2016-01-16_1504.jpg",
+      "camera": 2,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "15:04",
+      "title": "Cámara 2, soleado, 15:04",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c3-2016-01-16-1505",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera3/2016-01-16_1505.jpg",
+      "camera": 3,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "15:05",
+      "title": "Cámara 3, soleado, 15:05",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c4-2016-01-16-0907",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera4/2016-01-16_0907.jpg",
+      "camera": 4,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "09:07",
+      "title": "Cámara 4, soleado, 09:07",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c5-2015-12-17-0856",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera5/2015-12-17_0856.jpg",
+      "camera": 5,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "08:56",
+      "title": "Cámara 5, soleado, 08:56",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c6-2015-12-17-0851",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera6/2015-12-17_0851.jpg",
+      "camera": 6,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "08:51",
+      "title": "Cámara 6, soleado, 08:51",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c7-2015-12-17-0854",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera7/2015-12-17_0854.jpg",
+      "camera": 7,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "08:54",
+      "title": "Cámara 7, soleado, 08:54",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c8-2016-01-16-1453",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2016-01-16/camera8/2016-01-16_1453.jpg",
+      "camera": 8,
+      "weather": "SUNNY",
+      "date": "2016-01-16",
+      "time": "14:53",
+      "title": "Cámara 8, soleado, 14:53",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c9-2015-12-17-0854",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/SUNNY/2015-12-17/camera9/2015-12-17_0854.jpg",
+      "camera": 9,
+      "weather": "SUNNY",
+      "date": "2015-12-17",
+      "time": "08:54",
+      "title": "Cámara 9, soleado, 08:54",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c1-2015-12-03-0911",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera1/2015-12-03_0911.jpg",
+      "camera": 1,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "09:11",
+      "title": "Cámara 1, nublado, 09:11",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c2-2015-12-03-1514",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera2/2015-12-03_1514.jpg",
+      "camera": 2,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "15:14",
+      "title": "Cámara 2, nublado, 15:14",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c3-2015-12-03-0846",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera3/2015-12-03_0846.jpg",
+      "camera": 3,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "08:46",
+      "title": "Cámara 3, nublado, 08:46",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c4-2015-12-03-0847",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera4/2015-12-03_0847.jpg",
+      "camera": 4,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "08:47",
+      "title": "Cámara 4, nublado, 08:47",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c5-2015-12-03-1448",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera5/2015-12-03_1448.jpg",
+      "camera": 5,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "14:48",
+      "title": "Cámara 5, nublado, 14:48",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c6-2015-12-03-0849",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera6/2015-12-03_0849.jpg",
+      "camera": 6,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "08:49",
+      "title": "Cámara 6, nublado, 08:49",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c7-2015-12-03-0850",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera7/2015-12-03_0850.jpg",
+      "camera": 7,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "08:50",
+      "title": "Cámara 7, nublado, 08:50",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c8-2015-12-03-1451",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera8/2015-12-03_1451.jpg",
+      "camera": 8,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "14:51",
+      "title": "Cámara 8, nublado, 14:51",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c9-2015-12-03-1447",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/OVERCAST/2015-12-03/camera9/2015-12-03_1447.jpg",
+      "camera": 9,
+      "weather": "OVERCAST",
+      "date": "2015-12-03",
+      "time": "14:47",
+      "title": "Cámara 9, nublado, 14:47",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c1-2016-02-12-0910",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera1/2016-02-12_0910.jpg",
+      "camera": 1,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "09:10",
+      "title": "Cámara 1, lluvia, 09:10",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c2-2016-02-12-1505",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera2/2016-02-12_1505.jpg",
+      "camera": 2,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "15:05",
+      "title": "Cámara 2, lluvia, 15:05",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c3-2016-02-12-1506",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera3/2016-02-12_1506.jpg",
+      "camera": 3,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "15:06",
+      "title": "Cámara 3, lluvia, 15:06",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c4-2015-12-22-1451",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2015-12-22/camera4/2015-12-22_1451.jpg",
+      "camera": 4,
+      "weather": "RAINY",
+      "date": "2015-12-22",
+      "time": "14:51",
+      "title": "Cámara 4, lluvia, 14:51",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c5-2016-02-12-1501",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera5/2016-02-12_1501.jpg",
+      "camera": 5,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "15:01",
+      "title": "Cámara 5, lluvia, 15:01",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c6-2016-02-12-1454",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera6/2016-02-12_1454.jpg",
+      "camera": 6,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "14:54",
+      "title": "Cámara 6, lluvia, 14:54",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c7-2016-02-12-0855",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera7/2016-02-12_0855.jpg",
+      "camera": 7,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "08:55",
+      "title": "Cámara 7, lluvia, 08:55",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c8-2016-02-12-0902",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2016-02-12/camera8/2016-02-12_0902.jpg",
+      "camera": 8,
+      "weather": "RAINY",
+      "date": "2016-02-12",
+      "time": "09:02",
+      "title": "Cámara 8, lluvia, 09:02",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
+      "id": "ext-c9-2015-12-22-0854",
+      "kind": "frame",
+      "subset": "CNR-EXT",
+      "path": "CNR-EXT_FULL/FULL_IMAGE_1000x750/RAINY/2015-12-22/camera9/2015-12-22_0854.jpg",
+      "camera": 9,
+      "weather": "RAINY",
+      "date": "2015-12-22",
+      "time": "08:54",
+      "title": "Cámara 9, lluvia, 08:54",
+      "note": "",
+      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+    },
+    {
       "id": "ext-c6-2016-02-12-0724",
       "kind": "frame",
       "subset": "CNR-EXT",
@@ -93,7 +717,8 @@
       "time": "07:24",
       "title": "Cámara 6, lluvia, 07:24",
       "note": "caso difícil: temprano, con lluvia y poca luz",
-      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+      "split_origin": "fecha de test (nunca vista en entrenamiento)",
+      "hard": true
     },
     {
       "id": "ext-c8-2016-01-16-1723",
@@ -106,83 +731,614 @@
       "time": "17:23",
       "title": "Cámara 8, soleado, 17:23",
       "note": "caso difícil: al atardecer, con muy poca luz",
-      "split_origin": "fecha de test (nunca vista en entrenamiento)"
+      "split_origin": "fecha de test (nunca vista en entrenamiento)",
+      "hard": true
     },
     {
-      "id": "ood-a-20150703_1605_10",
-      "kind": "patch",
+      "id": "mosaic-a",
+      "kind": "mosaic",
       "subset": "CNRPark",
-      "path": "CNRPark/A/busy/20150703_1605_10.jpg",
       "camera": "A",
-      "weather": "SUNNY",
-      "date": "2015-07-03",
-      "time": "16:05",
-      "title": "CNRPark A, espacio 10, soleado, 16:05",
-      "note": "otro parqueo y otra cámara (fuera de dominio)",
-      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+      "title": "CNRPark A: mosaico 1 de 12 espacios",
+      "note": "otro parqueo: patches de 150×150 en una cuadrícula 4×3 (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)",
+      "grid": {
+        "cols": 4,
+        "rows": 3
+      },
+      "cell_size": 150,
+      "cells": [
+        {
+          "slot_id": "1",
+          "path": "CNRPark/A/busy/20150703_1600_38.jpg",
+          "source_slot": "38",
+          "date": "2015-07-03",
+          "time": "16:00"
+        },
+        {
+          "slot_id": "2",
+          "path": "CNRPark/A/free/20150703_1325_48.jpg",
+          "source_slot": "48",
+          "date": "2015-07-03",
+          "time": "13:25"
+        },
+        {
+          "slot_id": "3",
+          "path": "CNRPark/A/busy/20150703_1540_5.jpg",
+          "source_slot": "5",
+          "date": "2015-07-03",
+          "time": "15:40"
+        },
+        {
+          "slot_id": "4",
+          "path": "CNRPark/A/busy/20150703_1640_49.jpg",
+          "source_slot": "49",
+          "date": "2015-07-03",
+          "time": "16:40"
+        },
+        {
+          "slot_id": "5",
+          "path": "CNRPark/A/free/20150703_1715_24.jpg",
+          "source_slot": "24",
+          "date": "2015-07-03",
+          "time": "17:15"
+        },
+        {
+          "slot_id": "6",
+          "path": "CNRPark/A/free/20150703_0805_24.jpg",
+          "source_slot": "24",
+          "date": "2015-07-03",
+          "time": "08:05"
+        },
+        {
+          "slot_id": "7",
+          "path": "CNRPark/A/free/20150703_0840_33.jpg",
+          "source_slot": "33",
+          "date": "2015-07-03",
+          "time": "08:40"
+        },
+        {
+          "slot_id": "8",
+          "path": "CNRPark/A/busy/20150703_1500_2.jpg",
+          "source_slot": "2",
+          "date": "2015-07-03",
+          "time": "15:00"
+        },
+        {
+          "slot_id": "9",
+          "path": "CNRPark/A/busy/20150703_1355_7.jpg",
+          "source_slot": "7",
+          "date": "2015-07-03",
+          "time": "13:55"
+        },
+        {
+          "slot_id": "10",
+          "path": "CNRPark/A/free/20150703_0805_32.jpg",
+          "source_slot": "32",
+          "date": "2015-07-03",
+          "time": "08:05"
+        },
+        {
+          "slot_id": "11",
+          "path": "CNRPark/A/busy/20150703_0945_46.jpg",
+          "source_slot": "46",
+          "date": "2015-07-03",
+          "time": "09:45"
+        },
+        {
+          "slot_id": "12",
+          "path": "CNRPark/A/free/20150703_1235_27.jpg",
+          "source_slot": "27",
+          "date": "2015-07-03",
+          "time": "12:35"
+        }
+      ]
     },
     {
-      "id": "ood-a-20150703_1505_28",
-      "kind": "patch",
+      "id": "mosaic-a2",
+      "kind": "mosaic",
       "subset": "CNRPark",
-      "path": "CNRPark/A/free/20150703_1505_28.jpg",
       "camera": "A",
-      "weather": "SUNNY",
-      "date": "2015-07-03",
-      "time": "15:05",
-      "title": "CNRPark A, espacio 28, soleado, 15:05",
-      "note": "otro parqueo y otra cámara (fuera de dominio)",
-      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+      "title": "CNRPark A: mosaico 2 de 12 espacios",
+      "note": "otro parqueo: patches de 150×150 en una cuadrícula 4×3 (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)",
+      "grid": {
+        "cols": 4,
+        "rows": 3
+      },
+      "cell_size": 150,
+      "cells": [
+        {
+          "slot_id": "1",
+          "path": "CNRPark/A/free/20150703_1340_31.jpg",
+          "source_slot": "31",
+          "date": "2015-07-03",
+          "time": "13:40"
+        },
+        {
+          "slot_id": "2",
+          "path": "CNRPark/A/free/20150703_0810_22.jpg",
+          "source_slot": "22",
+          "date": "2015-07-03",
+          "time": "08:10"
+        },
+        {
+          "slot_id": "3",
+          "path": "CNRPark/A/busy/20150703_1735_3.jpg",
+          "source_slot": "3",
+          "date": "2015-07-03",
+          "time": "17:35"
+        },
+        {
+          "slot_id": "4",
+          "path": "CNRPark/A/free/20150703_1105_24.jpg",
+          "source_slot": "24",
+          "date": "2015-07-03",
+          "time": "11:05"
+        },
+        {
+          "slot_id": "5",
+          "path": "CNRPark/A/busy/20150703_1420_12.jpg",
+          "source_slot": "12",
+          "date": "2015-07-03",
+          "time": "14:20"
+        },
+        {
+          "slot_id": "6",
+          "path": "CNRPark/A/free/20150703_1045_24.jpg",
+          "source_slot": "24",
+          "date": "2015-07-03",
+          "time": "10:45"
+        },
+        {
+          "slot_id": "7",
+          "path": "CNRPark/A/busy/20150703_1045_40.jpg",
+          "source_slot": "40",
+          "date": "2015-07-03",
+          "time": "10:45"
+        },
+        {
+          "slot_id": "8",
+          "path": "CNRPark/A/free/20150703_0825_41.jpg",
+          "source_slot": "41",
+          "date": "2015-07-03",
+          "time": "08:25"
+        },
+        {
+          "slot_id": "9",
+          "path": "CNRPark/A/free/20150703_0810_38.jpg",
+          "source_slot": "38",
+          "date": "2015-07-03",
+          "time": "08:10"
+        },
+        {
+          "slot_id": "10",
+          "path": "CNRPark/A/busy/20150703_0840_1.jpg",
+          "source_slot": "1",
+          "date": "2015-07-03",
+          "time": "08:40"
+        },
+        {
+          "slot_id": "11",
+          "path": "CNRPark/A/busy/20150703_1130_13.jpg",
+          "source_slot": "13",
+          "date": "2015-07-03",
+          "time": "11:30"
+        },
+        {
+          "slot_id": "12",
+          "path": "CNRPark/A/busy/20150703_1310_10.jpg",
+          "source_slot": "10",
+          "date": "2015-07-03",
+          "time": "13:10"
+        }
+      ]
     },
     {
-      "id": "ood-a-20150703_1615_23",
-      "kind": "patch",
+      "id": "mosaic-b",
+      "kind": "mosaic",
       "subset": "CNRPark",
-      "path": "CNRPark/A/busy/20150703_1615_23.jpg",
-      "camera": "A",
-      "weather": "SUNNY",
-      "date": "2015-07-03",
-      "time": "16:15",
-      "title": "CNRPark A, espacio 23, soleado, 16:15",
-      "note": "otro parqueo y otra cámara (fuera de dominio)",
-      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
-    },
-    {
-      "id": "ood-b-20150708_1125_3",
-      "kind": "patch",
-      "subset": "CNRPark",
-      "path": "CNRPark/B/busy/20150708_1125_3.jpg",
       "camera": "B",
+      "title": "CNRPark B: mosaico 1 de 12 espacios",
+      "note": "otro parqueo: patches de 150×150 en una cuadrícula 4×3 (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)",
+      "grid": {
+        "cols": 4,
+        "rows": 3
+      },
+      "cell_size": 150,
+      "cells": [
+        {
+          "slot_id": "1",
+          "path": "CNRPark/B/busy/20150708_1225_18.jpg",
+          "source_slot": "18",
+          "date": "2015-07-08",
+          "time": "12:25"
+        },
+        {
+          "slot_id": "2",
+          "path": "CNRPark/B/busy/20150708_1110_4.jpg",
+          "source_slot": "4",
+          "date": "2015-07-08",
+          "time": "11:10"
+        },
+        {
+          "slot_id": "3",
+          "path": "CNRPark/B/busy/20150708_0935_5.jpg",
+          "source_slot": "5",
+          "date": "2015-07-08",
+          "time": "09:35"
+        },
+        {
+          "slot_id": "4",
+          "path": "CNRPark/B/free/20150708_1630_24.jpg",
+          "source_slot": "24",
+          "date": "2015-07-08",
+          "time": "16:30"
+        },
+        {
+          "slot_id": "5",
+          "path": "CNRPark/B/busy/20150708_0945_12.jpg",
+          "source_slot": "12",
+          "date": "2015-07-08",
+          "time": "09:45"
+        },
+        {
+          "slot_id": "6",
+          "path": "CNRPark/B/free/20150708_1735_5.jpg",
+          "source_slot": "5",
+          "date": "2015-07-08",
+          "time": "17:35"
+        },
+        {
+          "slot_id": "7",
+          "path": "CNRPark/B/free/20150708_1505_53.jpg",
+          "source_slot": "53",
+          "date": "2015-07-08",
+          "time": "15:05"
+        },
+        {
+          "slot_id": "8",
+          "path": "CNRPark/B/free/20150708_1735_34.jpg",
+          "source_slot": "34",
+          "date": "2015-07-08",
+          "time": "17:35"
+        },
+        {
+          "slot_id": "9",
+          "path": "CNRPark/B/free/20150708_1350_29.jpg",
+          "source_slot": "29",
+          "date": "2015-07-08",
+          "time": "13:50"
+        },
+        {
+          "slot_id": "10",
+          "path": "CNRPark/B/busy/20150708_1030_4.jpg",
+          "source_slot": "4",
+          "date": "2015-07-08",
+          "time": "10:30"
+        },
+        {
+          "slot_id": "11",
+          "path": "CNRPark/B/busy/20150708_1545_40.jpg",
+          "source_slot": "40",
+          "date": "2015-07-08",
+          "time": "15:45"
+        },
+        {
+          "slot_id": "12",
+          "path": "CNRPark/B/free/20150708_0820_35.jpg",
+          "source_slot": "35",
+          "date": "2015-07-08",
+          "time": "08:20"
+        }
+      ]
+    },
+    {
+      "id": "mosaic-b2",
+      "kind": "mosaic",
+      "subset": "CNRPark",
+      "camera": "B",
+      "title": "CNRPark B: mosaico 2 de 12 espacios",
+      "note": "otro parqueo: patches de 150×150 en una cuadrícula 4×3 (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)",
+      "grid": {
+        "cols": 4,
+        "rows": 3
+      },
+      "cell_size": 150,
+      "cells": [
+        {
+          "slot_id": "1",
+          "path": "CNRPark/B/busy/20150708_1550_18.jpg",
+          "source_slot": "18",
+          "date": "2015-07-08",
+          "time": "15:50"
+        },
+        {
+          "slot_id": "2",
+          "path": "CNRPark/B/free/20150708_0835_43.jpg",
+          "source_slot": "43",
+          "date": "2015-07-08",
+          "time": "08:35"
+        },
+        {
+          "slot_id": "3",
+          "path": "CNRPark/B/busy/20150708_1145_38.jpg",
+          "source_slot": "38",
+          "date": "2015-07-08",
+          "time": "11:45"
+        },
+        {
+          "slot_id": "4",
+          "path": "CNRPark/B/free/20150708_1005_20.jpg",
+          "source_slot": "20",
+          "date": "2015-07-08",
+          "time": "10:05"
+        },
+        {
+          "slot_id": "5",
+          "path": "CNRPark/B/free/20150708_1440_29.jpg",
+          "source_slot": "29",
+          "date": "2015-07-08",
+          "time": "14:40"
+        },
+        {
+          "slot_id": "6",
+          "path": "CNRPark/B/busy/20150708_0955_40.jpg",
+          "source_slot": "40",
+          "date": "2015-07-08",
+          "time": "09:55"
+        },
+        {
+          "slot_id": "7",
+          "path": "CNRPark/B/busy/20150708_1155_29.jpg",
+          "source_slot": "29",
+          "date": "2015-07-08",
+          "time": "11:55"
+        },
+        {
+          "slot_id": "8",
+          "path": "CNRPark/B/free/20150708_0855_23.jpg",
+          "source_slot": "23",
+          "date": "2015-07-08",
+          "time": "08:55"
+        },
+        {
+          "slot_id": "9",
+          "path": "CNRPark/B/busy/20150708_1445_20.jpg",
+          "source_slot": "20",
+          "date": "2015-07-08",
+          "time": "14:45"
+        },
+        {
+          "slot_id": "10",
+          "path": "CNRPark/B/busy/20150708_1215_10.jpg",
+          "source_slot": "10",
+          "date": "2015-07-08",
+          "time": "12:15"
+        },
+        {
+          "slot_id": "11",
+          "path": "CNRPark/B/free/20150708_1635_48.jpg",
+          "source_slot": "48",
+          "date": "2015-07-08",
+          "time": "16:35"
+        },
+        {
+          "slot_id": "12",
+          "path": "CNRPark/B/free/20150708_1435_29.jpg",
+          "source_slot": "29",
+          "date": "2015-07-08",
+          "time": "14:35"
+        }
+      ]
+    },
+    {
+      "id": "ood-a-20150703_0910_7",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/A/busy/20150703_0910_7.jpg",
+      "camera": "A",
       "weather": "SUNNY",
-      "date": "2015-07-08",
-      "time": "11:25",
-      "title": "CNRPark B, espacio 3, soleado, 11:25",
+      "date": "2015-07-03",
+      "time": "09:10",
+      "title": "CNRPark A, espacio 7, soleado, 09:10",
       "note": "otro parqueo y otra cámara (fuera de dominio)",
       "split_origin": "CNRPark A/B (nunca usado para entrenar)"
     },
     {
-      "id": "ood-b-20150708_0855_42",
+      "id": "ood-a-20150703_0830_23",
       "kind": "patch",
       "subset": "CNRPark",
-      "path": "CNRPark/B/free/20150708_0855_42.jpg",
-      "camera": "B",
+      "path": "CNRPark/A/free/20150703_0830_23.jpg",
+      "camera": "A",
       "weather": "SUNNY",
-      "date": "2015-07-08",
+      "date": "2015-07-03",
+      "time": "08:30",
+      "title": "CNRPark A, espacio 23, soleado, 08:30",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-a-20150703_1145_21",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/A/busy/20150703_1145_21.jpg",
+      "camera": "A",
+      "weather": "SUNNY",
+      "date": "2015-07-03",
+      "time": "11:45",
+      "title": "CNRPark A, espacio 21, soleado, 11:45",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-a-20150703_0855_43",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/A/free/20150703_0855_43.jpg",
+      "camera": "A",
+      "weather": "SUNNY",
+      "date": "2015-07-03",
       "time": "08:55",
-      "title": "CNRPark B, espacio 42, soleado, 08:55",
+      "title": "CNRPark A, espacio 43, soleado, 08:55",
       "note": "otro parqueo y otra cámara (fuera de dominio)",
       "split_origin": "CNRPark A/B (nunca usado para entrenar)"
     },
     {
-      "id": "ood-b-20150708_0940_45",
+      "id": "ood-a-20150703_1310_38",
       "kind": "patch",
       "subset": "CNRPark",
-      "path": "CNRPark/B/busy/20150708_0940_45.jpg",
+      "path": "CNRPark/A/busy/20150703_1310_38.jpg",
+      "camera": "A",
+      "weather": "SUNNY",
+      "date": "2015-07-03",
+      "time": "13:10",
+      "title": "CNRPark A, espacio 38, soleado, 13:10",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-a-20150703_0940_48",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/A/free/20150703_0940_48.jpg",
+      "camera": "A",
+      "weather": "SUNNY",
+      "date": "2015-07-03",
+      "time": "09:40",
+      "title": "CNRPark A, espacio 48, soleado, 09:40",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-a-20150703_1410_40",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/A/busy/20150703_1410_40.jpg",
+      "camera": "A",
+      "weather": "SUNNY",
+      "date": "2015-07-03",
+      "time": "14:10",
+      "title": "CNRPark A, espacio 40, soleado, 14:10",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-a-20150703_1530_42",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/A/free/20150703_1530_42.jpg",
+      "camera": "A",
+      "weather": "SUNNY",
+      "date": "2015-07-03",
+      "time": "15:30",
+      "title": "CNRPark A, espacio 42, soleado, 15:30",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_1000_12",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/busy/20150708_1000_12.jpg",
       "camera": "B",
       "weather": "SUNNY",
       "date": "2015-07-08",
-      "time": "09:40",
-      "title": "CNRPark B, espacio 45, soleado, 09:40",
+      "time": "10:00",
+      "title": "CNRPark B, espacio 12, soleado, 10:00",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_0810_39",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/free/20150708_0810_39.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "08:10",
+      "title": "CNRPark B, espacio 39, soleado, 08:10",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_1350_34",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/busy/20150708_1350_34.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "13:50",
+      "title": "CNRPark B, espacio 34, soleado, 13:50",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_0910_19",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/free/20150708_0910_19.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "09:10",
+      "title": "CNRPark B, espacio 19, soleado, 09:10",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_1610_25",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/busy/20150708_1610_25.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "16:10",
+      "title": "CNRPark B, espacio 25, soleado, 16:10",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_1735_17",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/free/20150708_1735_17.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "17:35",
+      "title": "CNRPark B, espacio 17, soleado, 17:35",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_1635_3",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/busy/20150708_1635_3.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "16:35",
+      "title": "CNRPark B, espacio 3, soleado, 16:35",
+      "note": "otro parqueo y otra cámara (fuera de dominio)",
+      "split_origin": "CNRPark A/B (nunca usado para entrenar)"
+    },
+    {
+      "id": "ood-b-20150708_1750_35",
+      "kind": "patch",
+      "subset": "CNRPark",
+      "path": "CNRPark/B/free/20150708_1750_35.jpg",
+      "camera": "B",
+      "weather": "SUNNY",
+      "date": "2015-07-08",
+      "time": "17:50",
+      "title": "CNRPark B, espacio 35, soleado, 17:50",
       "note": "otro parqueo y otra cámara (fuera de dominio)",
       "split_origin": "CNRPark A/B (nunca usado para entrenar)"
     }

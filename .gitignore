@@ -15,6 +15,9 @@ models/*
 # Retroalimentación de la app (datos de uso locales)
 app/feedback.jsonl
 
+# Fotos propias de la galería local (tienen personas y placas: no se versionan)
+app/galeria_propia/
+
 # Python
 __pycache__/
 *.py[cod]

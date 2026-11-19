@@ -1,21 +1,27 @@
-// Dashboard de Cupo Seguro: galería, subida de imágenes, dibujo de espacios y resultados.
-// Sin dependencias externas.
+// Dashboard de Cupo Seguro: selector de modelo, galería, subida de imágenes, dibujo de
+// espacios y resultados. Sin dependencias externas.
 "use strict";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const STATE_LABEL = { libre: "Libre", ocupado: "Ocupado", verificar: "Por verificar" };
 const MIN_BOX = 4; // lado mínimo de una caja dibujada, en píxeles de la imagen
+const WEATHER_GROUPS = [["SUNNY", "Soleado"], ["OVERCAST", "Nublado"], ["RAINY", "Lluvia"]];
+const KIND_LABEL = { onnx: "ONNX (red neuronal)", classical: "clásico (HOG + regresión logística)" };
 
 const ui = {
   scenario: "comercial",
-  model: null,
+  models: [],        // registro de GET /api/models
+  modelId: null,     // id del modelo elegido en el selector
+  model: null,       // detalle de GET /api/model del modelo elegido
   gallery: [],
   source: null,      // {type: "gallery", item} | {type: "upload", file, url}
   result: null,
+  rerun: null,       // repite el último análisis (al cambiar de modelo)
+  seq: 0,            // número de la última petición (descarta respuestas viejas)
   selected: null,
   showGt: true,
   drawMode: false,
-  boxes: [],         // cajas dibujadas en píxeles de la imagen
+  boxes: [],         // cajas dibujadas en píxeles de la imagen: {x, y, w, h, slot_id?}
   dragStart: null,
   dragBox: null,
 };
@@ -65,6 +71,13 @@ function fmtQ(value) {
   return "Q " + Math.round(value).toLocaleString("es-GT");
 }
 
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 function setSource(source) {
   // Libera la URL de la imagen subida anterior
   if (ui.source && ui.source.type === "upload" && ui.source.url && (!source || source.url !== ui.source.url)) {
@@ -79,6 +92,10 @@ function setBusy(on) {
 
 function loadImage(url) {
   return new Promise((resolve, reject) => {
+    if (photo.src && photo.getAttribute("src") === url && photo.complete && photo.naturalWidth) {
+      resolve();
+      return;
+    }
     photo.onload = () => {
       // Los patches (150x150) se amplían para que se vean bien
       $("stage").classList.toggle("small", photo.naturalWidth < 400);
@@ -89,12 +106,33 @@ function loadImage(url) {
   });
 }
 
+function jsonBody(fields) {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...fields, scenario: ui.scenario, model: ui.modelId || undefined }),
+  };
+}
+
+function uploadForm(file, extra = {}) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("scenario", ui.scenario);
+  if (ui.modelId) form.append("model", ui.modelId);
+  for (const [k, v] of Object.entries(extra)) form.append(k, v);
+  return form;
+}
+
 // ---------------------------------------------------------------------------
-// Modelo y escenario
+// Modelos y escenario
 // ---------------------------------------------------------------------------
 
+function modelEntry(id) {
+  return ui.models.find((m) => m.id === id) || null;
+}
+
 function thresholds(scenario) {
-  if (ui.result) return ui.result.thresholds[scenario];
+  if (ui.result && (!ui.result.model || ui.result.model.id === ui.modelId)) return ui.result.thresholds[scenario];
   return ui.model ? ui.model.thresholds[scenario] : null;
 }
 
@@ -120,47 +158,111 @@ function renderModel() {
     ["Nombre", m.name],
     ["Run", m.run_id],
     ["Arquitectura", m.model],
-    ["Tamaño", `${fmt(m.size_mb, 2)} MB`],
+    ["Tipo", KIND_LABEL[m.kind] || m.kind],
+    ["Archivo", `${m.model_file || m.onnx_file} (${fmt(m.size_mb, 2)} MB)`],
     ["Temperatura", `${fmt(m.temperature, 3)}${m.calibrated ? " (calibrado)" : ""}`],
     ["Val F1 macro (t = 0.5)", fmt(bin.f1_macro, 3)],
     ["Val AUC", fmt(bin.auc, 3)],
-    ["Val ocupado→libre (t = 0.5)", bin.rate_busy_as_free === undefined ? "–" : `${fmt(100 * bin.rate_busy_as_free, 2)} %`],
+    ["Val ocupado→libre (t = 0.5)", bin.rate_busy_as_free === undefined || bin.rate_busy_as_free === null ? "–" : `${fmt(100 * bin.rate_busy_as_free, 2)} %`],
     ["Valor comercial (val)", `${fmtQ(com.objective_value)} /mes`],
     ["Valor UVG (val)", `${fmtQ(uvg.objective_value)} /semestre`],
   ];
-  if (bench) {
+  if (m.kind === "classical" && m.hog) {
+    rows.splice(4, 0, ["Features", `HOG sobre gris ${m.hog.image_size}×${m.hog.image_size}`]);
+  }
+  // benchmark.json es de un solo modelo: solo se muestra si corresponde al elegido
+  if (bench && bench.matches_model) {
     rows.push(["CPU por frame (p50)", `${fmt(bench.cpu_per_frame_p50_ms, 1)} ms (${bench.slots_per_frame || "–"} espacios)`]);
     rows.push(["CPU por espacio (p50)", `${fmt(bench.cpu_per_slot_p50_ms, 2)} ms`]);
     rows.push(["Costo por 1,000 predicciones", `Q ${fmt(bench.costo_por_1000_pred_Q, 5)}`]);
-    if (bench.matches_model === false) rows.push(["Aviso", "la latencia es de otro modelo; vuelve a correr el benchmark"]);
   }
   box.className = "";
-  const dl = document.createElement("dl");
-  dl.className = "kv";
-  for (const [k, v] of rows) {
-    const dt = document.createElement("dt");
-    dt.textContent = k;
-    const dd = document.createElement("dd");
-    dd.textContent = v ?? "–";
-    dl.append(dt, dd);
+  const title = el("p", "model-title", m.label || m.name || m.id);
+  if (m.is_default) title.append(el("span", "badge", "por defecto"));
+  const dl = el("dl", "kv");
+  for (const [k, v] of rows) dl.append(el("dt", "", k), el("dd", "", v ?? "–"));
+  const parts = [title, dl];
+  if (bench && !bench.matches_model) {
+    parts.push(el("p", "hint", "La latencia medida (benchmark.json) es de otro modelo; aquí solo cuenta la latencia de cada análisis."));
   }
-  const rule = document.createElement("p");
-  rule.className = "hint";
-  rule.textContent = m.rule || "";
-  box.replaceChildren(dl, rule);
+  parts.push(el("p", "hint", m.rule || ""));
+  box.replaceChildren(...parts);
+}
+
+function renderTimeBenefit() {
+  const box = $("time-benefit");
+  const tb = ui.model && ui.model.time_benefit;
+  if (!tb) {
+    box.className = "hint";
+    box.textContent = "Sin datos de tiempo para este modelo (results/iteraciones.csv).";
+    return;
+  }
+  box.className = "time-benefit";
+  const big = el("p", "time-big", `${fmt(tb.minutos_ahorrados, 1)} min`);
+  const rows = [
+    ["Sin el sistema", `${fmt(tb.t_base_min, 1)} min buscando espacio`],
+    ["Con este modelo", `${fmt(tb.minutos_con_sistema, 1)} min`],
+    ["Horas por semestre", `${Math.round(tb.horas_semestre).toLocaleString("es-GT")} h (${tb.llegadas_dia} llegadas/día × ${tb.dias_semestre} días)`],
+  ];
+  if (tb.segundos_vs_b1 !== undefined) {
+    rows.push(["Frente a B1 (clásico)", `${tb.segundos_vs_b1 >= 0 ? "+" : ""}${fmt(tb.segundos_vs_b1, 1)} s por conductor`]);
+  }
+  const dl = el("dl", "kv");
+  for (const [k, v] of rows) dl.append(el("dt", "", k), el("dd", "", v));
+  box.replaceChildren(
+    el("p", "hint", "Ahorro por conductor que llega al parqueo UVG"), big, dl,
+    el("p", "hint", "Validación con el modelo de valor; tiempo base de literatura (Shoup, 2006), por confirmar con mediciones en el campus."));
 }
 
 async function loadModel() {
+  const wanted = ui.modelId;
   try {
-    ui.model = await api("/api/model");
+    const query = wanted ? `?model=${encodeURIComponent(wanted)}` : "";
+    const model = await api(`/api/model${query}`);
+    if (wanted !== ui.modelId) return; // se cambió de modelo mientras tanto
+    ui.model = model;
     hideBanner();
     renderModel();
     renderThresholds();
+    renderTimeBenefit();
   } catch (error) {
+    if (wanted !== ui.modelId) return;
     ui.model = null;
+    renderTimeBenefit();
     showBanner(error.message, error.status === 503 ? "error" : "warn");
     $("model-info").textContent = "Sin modelo cargado.";
   }
+}
+
+async function loadModels() {
+  const select = $("model-select");
+  try {
+    const data = await api("/api/models");
+    ui.models = data.models;
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = modelEntry(params.get("modelo"));
+    ui.modelId = fromUrl ? fromUrl.id : data.default;
+    select.replaceChildren(...data.models.map((m) => {
+      const option = el("option", "", m.available ? m.label : `${m.label} (no disponible)`);
+      option.value = m.id;
+      option.disabled = !m.available;
+      option.title = m.error || (m.val_f1 !== null ? `Val F1 ${fmt(m.val_f1, 3)} · valor comercial ${fmtQ(m.val_value_comercial)} /mes` : "");
+      return option;
+    }));
+    select.value = ui.modelId;
+    select.disabled = data.models.length < 2;
+  } catch (error) {
+    select.replaceChildren(el("option", "", "Sin modelos"));
+    showBanner(error.message, "warn");
+  }
+  await loadModel();
+}
+
+function onModelChange(event) {
+  ui.modelId = event.target.value;
+  loadModel();
+  // Se vuelve a analizar la imagen actual con el modelo nuevo (en modo dibujo se espera al usuario)
+  if (!ui.drawMode && ui.rerun) ui.rerun();
 }
 
 function setScenario(scenario) {
@@ -178,59 +280,81 @@ function setScenario(scenario) {
 // ---------------------------------------------------------------------------
 
 function thumb(item) {
-  const button = document.createElement("button");
+  const button = el("button", "thumb");
   button.type = "button";
-  button.className = "thumb";
+  button.dataset.id = item.id;
   button.title = item.note ? `${item.title}: ${item.note}` : item.title;
   button.disabled = !item.available;
-  const img = document.createElement("img");
+  const img = el("img");
   img.loading = "lazy";
   img.alt = item.title;
   if (item.available) img.src = item.image_url;
-  const caption = document.createElement("span");
-  caption.textContent = item.available ? item.title : `${item.title} (no está en DATA_ROOT)`;
+  const caption = el("span", "", item.available ? item.title : `${item.title} (no está en DATA_ROOT)`);
   button.append(img, caption);
-  if (item.note) {
-    const note = document.createElement("em");
-    note.textContent = item.note;
-    button.append(note);
-  }
-  button.addEventListener("click", () => analyzeGallery(item, button));
+  if (item.note) button.append(el("em", "", item.note));
+  button.addEventListener("click", () => analyzeGallery(item));
   return button;
+}
+
+function renderFrameGroups(frames) {
+  const box = $("gallery-frames");
+  box.replaceChildren();
+  const groups = WEATHER_GROUPS.map(([key, label]) => [label, frames.filter((f) => f.weather === key && !f.hard)]);
+  groups.push(["Casos difíciles", frames.filter((f) => f.hard)]);
+  for (const [label, items] of groups) {
+    if (!items.length) continue;
+    const grid = el("div", "thumbs");
+    items.forEach((item) => grid.append(thumb(item)));
+    box.append(el("h4", "", `${label} (${items.length})`), grid);
+  }
+}
+
+function fillThumbs(id, items, emptyText) {
+  const box = $(id);
+  box.replaceChildren(...items.map(thumb));
+  if (!items.length && emptyText) box.append(el("p", "hint", emptyText));
 }
 
 async function loadGallery() {
   try {
     const data = await api("/api/gallery");
     ui.gallery = data.items;
-    const frames = $("gallery-frames");
-    const patches = $("gallery-patches");
-    frames.innerHTML = "";
-    patches.innerHTML = "";
-    for (const item of data.items) (item.kind === "frame" ? frames : patches).append(thumb(item));
-    if (!data.items.length) frames.textContent = "La galería está vacía (genera app/gallery.json).";
-    // Enlace directo a un ejemplo (útil en la demo): /?ejemplo=<id>&escenario=uvg
+    const byKind = (kind) => data.items.filter((item) => item.kind === kind);
+    renderFrameGroups(byKind("frame"));
+    const own = byKind("own");
+    fillThumbs("gallery-own", own);
+    $("gallery-own-wrap").classList.toggle("hidden", !own.length);
+    fillThumbs("gallery-mosaics", byKind("mosaic"));
+    fillThumbs("gallery-patches", byKind("patch"));
+    if (!data.items.length) $("gallery-frames").textContent = "La galería está vacía (genera app/gallery.json).";
+    // Enlace directo a un ejemplo (útil en la demo): /?ejemplo=<id>&escenario=uvg&modelo=<id>
     const params = new URLSearchParams(window.location.search);
     if (params.get("escenario") === "uvg") setScenario("uvg");
     const wanted = data.items.find((item) => item.id === params.get("ejemplo"));
-    if (wanted && wanted.available) analyzeGallery(wanted, null);
+    if (wanted && wanted.available) analyzeGallery(wanted);
   } catch (error) {
     $("gallery-frames").textContent = `No se pudo cargar la galería: ${error.message}`;
   }
 }
 
-async function analyzeGallery(item, button) {
-  document.querySelectorAll(".thumb").forEach((b) => b.classList.remove("active"));
-  if (button) button.classList.add("active");
+function markActiveThumb(id) {
+  document.querySelectorAll(".thumb").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
+}
+
+async function analyzeGallery(item) {
+  markActiveThumb(item.id);
   setSource({ type: "gallery", item });
   exitDrawMode();
-  const endpoint = item.kind === "frame" ? "/api/predict/frame" : "/api/predict/patch";
-  await runPrediction(item.image_url, () =>
-    api(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gallery_id: item.id, scenario: ui.scenario }),
-    }), item.title, item.note || item.split_origin || "");
+  if (item.kind === "own" && !item.has_boxes) {
+    // Foto propia sin cajas guardadas: directo al modo dibujo
+    ui.rerun = null;
+    return openForDrawing(item.image_url, `Dibuja los espacios de ${item.title}`, item.filename);
+  }
+  const endpoint = item.kind === "patch" ? "/api/predict/patch" : "/api/predict/frame";
+  ui.rerun = () => runPrediction(item.image_url, () => api(endpoint, jsonBody({ gallery_id: item.id })),
+    item.title, item.note || item.split_origin || (item.kind === "own" ? `${item.filename}: cajas de ${item.id.slice(4)}.json` : ""));
+  if (item.kind === "own") setTab("custom");
+  await ui.rerun();
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +362,7 @@ async function analyzeGallery(item, button) {
 // ---------------------------------------------------------------------------
 
 async function runPrediction(imageUrl, request, title, subtitle) {
+  const seq = ++ui.seq;
   hideBanner();
   setBusy(true);
   $("viewer-title").textContent = title;
@@ -245,27 +370,22 @@ async function runPrediction(imageUrl, request, title, subtitle) {
   try {
     await loadImage(imageUrl);
     $("stage").classList.remove("empty");
-    ui.result = await request();
+    const result = await request();
+    if (seq !== ui.seq) return; // llegó la respuesta de una petición anterior
+    ui.result = result;
     // Si el modelo se reemplazó en el servidor, se actualiza el panel "Modelo"
-    if (ui.result.model && (!ui.model || ui.model.run_id !== ui.result.model.run_id)) loadModel();
+    if (result.model && ui.model && result.model.id === ui.model.id && result.model.run_id !== ui.model.run_id) loadModel();
     // Con un solo espacio (modo patch) queda seleccionado para poder reportarlo
-    ui.selected = ui.result.slots.length === 1 ? ui.result.slots[0].slot_id : null;
+    ui.selected = result.slots.length === 1 ? result.slots[0].slot_id : null;
     renderResult();
   } catch (error) {
+    if (seq !== ui.seq) return;
     ui.result = null;
     renderResult();
     showBanner(error.message, error.status === 503 ? "error" : "warn");
   } finally {
-    setBusy(false);
+    if (seq === ui.seq) setBusy(false);
   }
-}
-
-function uploadForm(file, extra = {}) {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("scenario", ui.scenario);
-  for (const [k, v] of Object.entries(extra)) form.append(k, v);
-  return form;
 }
 
 function onSubmitFrame(event) {
@@ -276,9 +396,11 @@ function onSubmitFrame(event) {
   const camera = form.camera.value;
   const url = URL.createObjectURL(file);
   setSource({ type: "upload", file, url });
+  markActiveThumb(null);
   exitDrawMode();
-  runPrediction(url, () => api("/api/predict/frame", { method: "POST", body: uploadForm(file, { camera }) }),
-    `Imagen subida (cámara ${camera})`, file.name);
+  ui.rerun = () => runPrediction(url, () => api("/api/predict/frame", { method: "POST", body: uploadForm(file, { camera }) }),
+    `Imagen subida (cámara ${camera} de CNR-EXT)`, file.name);
+  ui.rerun();
 }
 
 function onSubmitPatch(event) {
@@ -287,9 +409,11 @@ function onSubmitPatch(event) {
   if (!file) return showBanner("Elige una imagen para analizar.", "warn");
   const url = URL.createObjectURL(file);
   setSource({ type: "upload", file, url });
+  markActiveThumb(null);
   exitDrawMode();
-  runPrediction(url, () => api("/api/predict/patch", { method: "POST", body: uploadForm(file) }),
+  ui.rerun = () => runPrediction(url, () => api("/api/predict/patch", { method: "POST", body: uploadForm(file) }),
     "Espacio subido", file.name);
+  ui.rerun();
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +428,14 @@ function outcome(slot) {
   return (state === "ocupado") === (slot.ground_truth === 1) ? "ok" : "error";
 }
 
+function renderResultModel(r) {
+  const badge = $("result-model");
+  const label = r && r.model ? (r.model.label || r.model.name) : null;
+  badge.classList.toggle("hidden", !label);
+  badge.textContent = label ? `Resultado de: ${label}` : "";
+  $("summary-model").textContent = `Modelo: ${label || "–"}`;
+}
+
 function renderResult() {
   renderThresholds();
   overlay.innerHTML = "";
@@ -311,6 +443,9 @@ function renderResult() {
   const gtAvailable = Boolean(r && r.ground_truth && r.ground_truth.available);
   $("gt-toggle-wrap").classList.toggle("hidden", !gtAvailable);
   renderWarnings(r ? r.warnings : []);
+  renderResultModel(r);
+  // "Editar cajas" convierte las cajas del resultado en cajas dibujables
+  $("draw-edit").classList.toggle("hidden", !r || ui.drawMode);
   if (!r) {
     $("c-free").textContent = $("c-busy").textContent = $("c-verify").textContent = "–";
     $("latency").textContent = "–";
@@ -393,19 +528,7 @@ function hideTooltip() {
 function renderWarnings(warnings) {
   const box = $("warnings");
   box.innerHTML = "";
-  for (const message of warnings || []) {
-    const p = document.createElement("p");
-    p.className = "warning";
-    p.textContent = `⚠ ${message}`;
-    box.append(p);
-  }
-}
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
+  for (const message of warnings || []) box.append(el("p", "warning", `⚠ ${message}`));
 }
 
 function renderGtSummary(available) {
@@ -470,6 +593,7 @@ async function sendFeedback(reported) {
         p_busy: slot.p_busy,
         scenario: ui.scenario,
         source,
+        model: ui.result.model ? ui.result.model.id : undefined,
       }),
     });
     $("fb-msg").textContent = res.message;
@@ -489,7 +613,6 @@ function enterDrawMode(keepBoxes = false) {
   ui.result = null;
   renderResult();
   canvas.classList.remove("hidden");
-  $("draw-edit").classList.add("hidden");
   $("stage").classList.add("drawing");
   resizeCanvas();
 }
@@ -520,10 +643,11 @@ function toImageCoords(event) {
 
 function drawBoxes() {
   const ctx = canvas.getContext("2d");
-  const k = canvas.width / photo.naturalWidth;
+  const k = photo.naturalWidth ? canvas.width / photo.naturalWidth : 1;
+  const dpr = window.devicePixelRatio || 1;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
-  ctx.font = `${12 * (window.devicePixelRatio || 1)}px sans-serif`;
+  ctx.lineWidth = 2 * dpr;
+  ctx.font = `${12 * dpr}px sans-serif`;
   const all = ui.dragBox ? [...ui.boxes, ui.dragBox] : ui.boxes;
   all.forEach((b, i) => {
     ctx.strokeStyle = "#38bdf8";
@@ -531,9 +655,10 @@ function drawBoxes() {
     ctx.fillRect(b.x * k, b.y * k, b.w * k, b.h * k);
     ctx.strokeRect(b.x * k, b.y * k, b.w * k, b.h * k);
     ctx.fillStyle = "#0c4a6e";
-    ctx.fillText(String(i + 1), b.x * k + 4, b.y * k + 14 * (window.devicePixelRatio || 1));
+    ctx.fillText(b.slot_id || String(i + 1), b.x * k + 4, b.y * k + 14 * dpr);
   });
-  $("box-count").textContent = `${ui.boxes.length} espacio${ui.boxes.length === 1 ? "" : "s"} dibujado${ui.boxes.length === 1 ? "" : "s"}`;
+  const n = ui.boxes.length;
+  $("box-count").textContent = `${n} espacio${n === 1 ? "" : "s"} dibujado${n === 1 ? "" : "s"}`;
 }
 
 function normBox(a, b) {
@@ -564,12 +689,10 @@ function onPointerUp(event) {
   drawBoxes();
 }
 
-async function onCustomFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const url = URL.createObjectURL(file);
-  setSource({ type: "upload", file, url });
+async function openForDrawing(url, title, subtitle) {
   ui.result = null;
+  ui.boxes = [];
+  setTab("custom");
   try {
     await loadImage(url);
   } catch (error) {
@@ -577,9 +700,19 @@ async function onCustomFile(event) {
   }
   hideBanner();
   $("stage").classList.remove("empty");
-  $("viewer-title").textContent = "Dibuja los espacios sobre tu imagen";
-  $("viewer-sub").textContent = file.name;
+  $("viewer-title").textContent = title;
+  $("viewer-sub").textContent = subtitle || "";
   enterDrawMode();
+}
+
+function onCustomFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  setSource({ type: "upload", file, url });
+  markActiveThumb(null);
+  ui.rerun = null;
+  openForDrawing(url, "Dibuja los espacios sobre tu imagen", file.name);
 }
 
 function useCurrentImage() {
@@ -588,29 +721,115 @@ function useCurrentImage() {
   enterDrawMode();
 }
 
+function editBoxes() {
+  // Las cajas del último resultado pasan a ser editables
+  if (ui.result) ui.boxes = ui.result.slots.map((s) => ({ ...s.box, slot_id: s.slot_id }));
+  enterDrawMode(true);
+}
+
+function numberedBoxes(boxes) {
+  // Respeta los slot_id que ya traen las cajas y numera las demás sin repetir
+  const used = new Set(boxes.map((b) => b.slot_id).filter(Boolean));
+  let next = 1;
+  return boxes.map((b) => {
+    let id = b.slot_id;
+    if (!id) {
+      while (used.has(String(next))) next += 1;
+      id = String(next);
+      used.add(id);
+    }
+    return { slot_id: String(id), x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) };
+  });
+}
+
 function runCustom() {
   if (!ui.source || !photo.naturalWidth) return showBanner("Primero sube una imagen o elige una de la galería.", "warn");
   if (!ui.boxes.length) return showBanner("No hay espacios dibujados: arrastra el mouse sobre la imagen para marcar al menos uno.", "warn");
-  const boxes = ui.boxes.map((b, i) => ({ ...b, slot_id: String(i + 1) }));
+  const boxes = numberedBoxes(ui.boxes);
+  const source = ui.source;
   let request;
   let imageUrl;
-  if (ui.source.type === "gallery") {
-    imageUrl = ui.source.item.image_url;
-    request = () => api("/api/predict/custom", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gallery_id: ui.source.item.id, boxes, scenario: ui.scenario }),
-    });
+  if (source.type === "gallery") {
+    imageUrl = source.item.image_url;
+    request = () => api("/api/predict/custom", jsonBody({ gallery_id: source.item.id, boxes }));
   } else {
-    imageUrl = ui.source.url;
-    request = () => api("/api/predict/custom", {
-      method: "POST",
-      body: uploadForm(ui.source.file, { boxes: JSON.stringify(boxes) }),
-    });
+    imageUrl = source.url;
+    request = () => api("/api/predict/custom", { method: "POST", body: uploadForm(source.file, { boxes: JSON.stringify(boxes) }) });
   }
   exitDrawMode();
-  $("draw-edit").classList.remove("hidden");
-  runPrediction(imageUrl, request, "Espacios dibujados", `${boxes.length} espacio(s)`);
+  ui.rerun = () => runPrediction(imageUrl, request, "Espacios dibujados", `${boxes.length} espacio(s)`);
+  ui.rerun();
+}
+
+// ---------------------------------------------------------------------------
+// Guardar y cargar cajas (JSON en píxeles de la imagen original)
+// ---------------------------------------------------------------------------
+
+function currentImageName() {
+  const s = ui.source;
+  if (!s) return "imagen";
+  if (s.type === "upload") return s.file.name;
+  return s.item.filename || `${s.item.id}.jpg`;
+}
+
+function saveBoxes() {
+  let boxes = ui.boxes;
+  if (!ui.drawMode && ui.result) boxes = ui.result.slots.map((s) => ({ ...s.box, slot_id: s.slot_id }));
+  if (!boxes.length) return showBanner("No hay cajas para guardar: dibuja al menos un espacio.", "warn");
+  const name = currentImageName();
+  const data = { image: name, boxes: numberedBoxes(boxes) };
+  const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], { type: "application/json" });
+  const link = el("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${name.replace(/\.[^.]+$/, "") || "cajas"}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function validBoxes(raw) {
+  const list = Array.isArray(raw) ? raw : raw && Array.isArray(raw.boxes) ? raw.boxes : null;
+  if (!list) throw new Error("El JSON debe tener la forma {image, boxes: [{slot_id, x, y, w, h}]}.");
+  const W = photo.naturalWidth;
+  const H = photo.naturalHeight;
+  const out = [];
+  for (const b of list) {
+    const v = ["x", "y", "w", "h"].map((k) => Number(b && b[k]));
+    if (!v.every(Number.isFinite)) throw new Error("Cada caja necesita números x, y, w, h.");
+    let [x, y, w, h] = v;
+    if (w < 0) [x, w] = [x + w, -w];
+    if (h < 0) [y, h] = [y + h, -h];
+    const x0 = Math.max(0, x), y0 = Math.max(0, y);
+    const x1 = Math.min(W, x + w), y1 = Math.min(H, y + h);
+    if (x1 - x0 < MIN_BOX || y1 - y0 < MIN_BOX) continue;
+    const box = { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
+    if (b.slot_id !== undefined && b.slot_id !== null && /^[\w-]{1,32}$/.test(String(b.slot_id))) box.slot_id = String(b.slot_id);
+    out.push(box);
+  }
+  if (!out.length) throw new Error("Ninguna caja del archivo cae dentro de la imagen actual.");
+  return out;
+}
+
+async function onBoxesFile(event) {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  if (!ui.source || !photo.naturalWidth) return showBanner("Primero sube la imagen (o elige una de la galería) y luego carga sus cajas.", "warn");
+  try {
+    const data = JSON.parse(await file.text());
+    const boxes = validBoxes(data);
+    hideBanner();
+    setTab("custom");
+    ui.boxes = boxes;
+    enterDrawMode(true);
+    const image = data && !Array.isArray(data) ? data.image : null;
+    if (image && image !== currentImageName()) {
+      showBanner(`Las cajas son de '${image}' y la imagen actual es '${currentImageName()}'; revisa que coincidan.`, "warn");
+    }
+  } catch (error) {
+    showBanner(`No se pudieron cargar las cajas: ${error.message}`, "warn");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -626,6 +845,7 @@ function setTab(tab) {
 function bindEvents() {
   document.querySelectorAll(".scenario-btn").forEach((b) => b.addEventListener("click", () => setScenario(b.dataset.scenario)));
   document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+  $("model-select").addEventListener("change", onModelChange);
   $("form-frame").addEventListener("submit", onSubmitFrame);
   $("form-patch").addEventListener("submit", onSubmitPatch);
   $("custom-file").addEventListener("change", onCustomFile);
@@ -633,7 +853,10 @@ function bindEvents() {
   $("draw-undo").addEventListener("click", () => { ui.boxes.pop(); drawBoxes(); });
   $("draw-clear").addEventListener("click", () => { ui.boxes = []; drawBoxes(); });
   $("draw-run").addEventListener("click", runCustom);
-  $("draw-edit").addEventListener("click", () => enterDrawMode(true));
+  $("draw-edit").addEventListener("click", editBoxes);
+  $("boxes-save").addEventListener("click", saveBoxes);
+  $("boxes-load").addEventListener("click", () => $("boxes-file").click());
+  $("boxes-file").addEventListener("change", onBoxesFile);
   $("gt-toggle").addEventListener("change", (e) => { ui.showGt = e.target.checked; renderResult(); });
   $("fb-busy").addEventListener("click", () => sendFeedback("ocupado"));
   $("fb-free").addEventListener("click", () => sendFeedback("libre"));
@@ -644,5 +867,4 @@ function bindEvents() {
 }
 
 bindEvents();
-loadModel();
-loadGallery();
+loadModels().then(loadGallery);

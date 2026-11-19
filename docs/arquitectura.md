@@ -73,7 +73,7 @@ Para el informe, el diagrama se puede exportar a PNG o SVG desde cualquier visor
 |---|---|
 | `app/static/` (`index.html`, `app.js`, `styles.css`) | Dashboard: galería, subida de fotos, dibujo de cajas, mapa coloreado por estado, conteos, P(ocupado) por espacio, umbrales del escenario, advertencias, latencia y botón de retroalimentación. |
 | `app/main.py` | API FastAPI: valida la petición y la imagen, obtiene las cajas (por cámara o dibujadas), arma la respuesta por escenario, devuelve errores con mensaje claro y escribe `feedback.jsonl`. |
-| `app/inference.py` | Carga `best.onnx` + `best.json` en ONNX Runtime (CPU) y los recarga si cambian; `p = softmax(logits / T)[:, 1]`; regla de decisión con `t_L` y `t_H`; calidad de imagen (brillo medio y varianza del Laplaciano); resumen de `benchmark.json`. |
+| `app/inference.py` | Registro de modelos: descubre en `models/` cada par `<nombre>.onnx` + `<nombre>.json` (ONNX Runtime en CPU) o `<nombre>.joblib` + `<nombre>.json` (B1 clásico, HOG + regresión logística); el modelo por defecto es `best.onnx` y el dashboard permite cambiar entre ellos. Cada modelo se carga al primer uso y se recarga si cambia su archivo; `p = softmax(logits / T)[:, 1]`; regla de decisión con `t_L` y `t_H`; calidad de imagen (brillo medio y varianza del Laplaciano); resumen de `benchmark.json`. |
 | `src/cupo/frames.py` | Cajas de los espacios de cada cámara de CNR-EXT (en 1000×750) y recorte de los espacios de un frame. |
 | `src/cupo/transforms.py` | `preprocess_numpy`: RGB, resize bilineal a 224×224, escala 1/255 y normalización ImageNet, igual que en evaluación. |
 | `src/cupo/train.py`, `thresholds.py`, `value_model.py` | Entrenamiento y elección de `t_L`, `t_H` por escenario maximizando el valor de negocio en val. |
@@ -82,7 +82,7 @@ Para el informe, el diagrama se puede exportar a PNG o SVG desde cualquier visor
 | `src/cupo/benchmark.py` | Latencia, throughput, costo por predicción y volumen soportado por núcleo → `benchmark.json`. |
 | `configs/value/*.yaml`, `configs/costs.yaml` | Supuestos de cada escenario (espacios, cámaras, refresco, costos) y costo de cómputo. |
 | `scripts/build_gallery.py` → `app/gallery.json` | Ejemplos de demostración nunca vistos en el entrenamiento (fechas de test de CNR-EXT y CNRPark A/B). |
-| `models/` (no versionado) | `best.onnx`, `best.json` y `benchmark.json` del modelo en servicio. Cambiar de modelo = reemplazar el par `.onnx` + `.json`. |
+| `models/` (no versionado) | `best.onnx`, `best.json` y `benchmark.json` del modelo en servicio, más las líneas base para comparar en la demo (`b2_malexnet.onnx`/`.json` con `cupo.export_onnx` y `b1_hog_lr.joblib`/`.json` con `scripts/export_classical.py`). Cambiar el modelo por defecto = reemplazar el par `best.onnx` + `best.json`. |
 | `app/feedback.jsonl` (no versionado) | Un reporte por línea: fecha, espacio, estado reportado, estado predicho, `p_busy`, escenario, origen y modelo. Sin imágenes. |
 
 ## 3. Métricas operativas

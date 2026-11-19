@@ -36,6 +36,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from cupo import metrics as M
+from cupo.classical import classical_logits  # se usa aquí y se reexporta para los scripts
 from cupo.runs import LoadedRun, load_run, save_json, save_npz
 from cupo.thresholds import optimize
 from cupo.value_model import compute_value, load_scenario
@@ -98,12 +99,6 @@ def predict_torch(model, df: pd.DataFrame, input_size: int, device, batch_size: 
     loader = make_loader(df, tfm, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     logits, _ = logits_from_loader(model, loader, device, amp)
     return logits
-
-
-def classical_logits(bundle: Mapping[str, Any], features: np.ndarray) -> np.ndarray:
-    """Logits ``[0, z]`` de la regresión logística: softmax da sigmoid(z) = P(ocupado)."""
-    z = bundle["pipeline"].decision_function(features)
-    return np.stack([np.zeros_like(z), z], axis=1).astype(np.float32)
 
 
 def predict_classical(bundle: Mapping[str, Any], df: pd.DataFrame, n_jobs: int = -1) -> np.ndarray:

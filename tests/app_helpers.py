@@ -200,3 +200,52 @@ def assert_private(resp, *extra: str) -> None:
     """El texto de la respuesta no trae rutas locales ni el nombre de usuario."""
     leaked = leaks(resp.text, *extra)  # booleano: el mensaje de fallo no repite el marcador
     assert leaked is False, f"la respuesta {resp.status_code} expone una ruta local o el usuario"
+
+
+# ------------------------------------------------------------- galería
+
+GALLERY_JSON = REPO / "app" / "gallery.json"
+
+
+def gallery_json_items() -> list[dict[str, Any]]:
+    """Elementos de ``app/gallery.json`` (frames, patches y mosaicos)."""
+    return json.loads(GALLERY_JSON.read_text(encoding="utf-8"))["items"]
+
+
+def item_rel_paths(item: dict[str, Any]) -> list[str]:
+    """Rutas relativas a DATA_ROOT de un elemento: ``path`` o, en los mosaicos, ``cells[].path``."""
+    if item.get("kind") == "mosaic":
+        return [c["path"] for c in item.get("cells", [])]
+    return [item["path"]] if "path" in item else []
+
+
+def has_gallery_data() -> bool:
+    """True si el dataset está en DATA_ROOT y existen todas las imágenes de la galería."""
+    from cupo import paths
+
+    try:
+        if not (paths.split_file("train").is_file() and paths.split_file("val").is_file()
+                and paths.split_file("test").is_file() and paths.metadata_csv().is_file()
+                and paths.full_images_dir().is_dir() and paths.cnrpark_dir().is_dir()):
+            return False
+        root = paths.data_root()
+        rels = [rel for it in gallery_json_items() for rel in item_rel_paths(it)]
+        per_item = all(item_rel_paths(it) for it in gallery_json_items())
+        return per_item and all((root / rel).is_file() for rel in rels)
+    except (OSError, KeyError, ValueError, json.JSONDecodeError):
+        return False
+
+
+# --------------------------------------------------------- otros modelos
+
+def add_tiny_model(folder: Path, stem: str, name: str,
+                   thresholds: dict[str, dict[str, float]] | None = None) -> Path:
+    """Agrega ``<stem>.onnx`` + ``<stem>.json`` (modelo diminuto) a la carpeta de modelos."""
+    path = folder / f"{stem}.onnx"
+    make_tiny_onnx(path)
+    card = tiny_card()
+    card.update({"name": name, "run_id": f"{name}_s0"})
+    if thresholds is not None:
+        card["thresholds"] = json.loads(json.dumps(thresholds))
+    write_card(path, card)
+    return path

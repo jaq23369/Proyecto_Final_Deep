@@ -4,13 +4,15 @@ Arranque (desde la raíz del repo):
     uvicorn app.main:app --port 8000
 
 Variables de entorno:
-- ``MODEL_PATH``: modelo ONNX (por defecto ``models/best.onnx``; ``best.json`` va al lado).
+- ``MODEL_PATH``: modelo por defecto (``models/best.onnx``; ``best.json`` va al lado). Los demás
+  pares ``<stem>.onnx|.joblib`` + ``<stem>.json`` de esa carpeta se pueden elegir con ``model``.
 - ``DATA_ROOT``: datos de CNRPark+EXT para la galería (por defecto ``../Data``).
+- ``OWN_GALLERY_DIR``: fotos propias con sus cajas (por defecto ``app/galeria_propia``).
 - ``FEEDBACK_PATH``: archivo de retroalimentación (por defecto ``app/feedback.jsonl``).
 - ``SHOW_GROUND_TRUTH``: con ``1`` la galería muestra las etiquetas reales como comparación
   visual. Desactivada por defecto: solo se activa después del congelamiento del modelo.
 
-Endpoints: ``GET /``, ``GET /api/model``, ``GET /api/gallery``,
+Endpoints: ``GET /``, ``GET /api/models``, ``GET /api/model``, ``GET /api/gallery``,
 ``GET /api/gallery/{id}/image``, ``POST /api/predict/frame``, ``POST /api/predict/patch``,
 ``POST /api/predict/custom`` y ``POST /api/feedback``.
 """
@@ -32,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 from starlette.concurrency import run_in_threadpool
@@ -46,12 +48,17 @@ from app.inference import (
     ModelStore,
     ModelUnavailableError,
     Predictor,
+    UnknownModelError,
     decide,
+    default_model_id,
     image_quality,
+    list_models,
     load_benchmark,
     model_path,
+    resolve_model,
 )
 from cupo import frames, paths
+from cupo.value_model import load_scenario
 
 logger = logging.getLogger("cupo.app")
 
@@ -60,6 +67,8 @@ STATIC_DIR = APP_DIR / "static"
 GALLERY_PATH = APP_DIR / "gallery.json"
 FEEDBACK_ENV = "FEEDBACK_PATH"
 SHOW_GT_ENV = "SHOW_GROUND_TRUTH"
+OWN_GALLERY_ENV = "OWN_GALLERY_DIR"
+DEFAULT_OWN_GALLERY = APP_DIR / "galeria_propia"
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_FORM_OVERHEAD = 64 * 1024          # margen para los demás campos del formulario
@@ -72,16 +81,27 @@ MIN_BOX_SIDE = 4
 EXT_CAMERAS = range(1, 10)
 PATCH_MAX_SIDE = 600                   # más grande que esto ya no parece la foto de un solo espacio
 ASPECT_TOLERANCE = 0.03
+MOSAIC_CELL = 150                      # lado de cada celda de los mosaicos de CNRPark
 ALL_STATES = (STATE_FREE, STATE_BUSY, STATE_VERIFY)
 REPORTED_STATES = (STATE_BUSY, STATE_FREE)
 # \Z y no $: $ también acepta un salto de línea final
 SLOT_ID_RE = re.compile(r"^[\w-]{1,32}\Z")
 UPLOAD_SOURCE = "upload"
+# Fotos propias: <nombre>.jpg|jpeg|png + <nombre>.json; el id es "own-<nombre>"
+OWN_PREFIX = "own-"
+OWN_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+OWN_NAME_RE = re.compile(r"^\w[\w .-]{0,79}\Z")
+DRAW_TAB = "'Dibujar espacios'"
 
 GT_NOTE = ("Etiquetas reales del dataset (SHOW_GROUND_TRUTH=1), solo como comparación visual; "
            "no se usan para elegir modelos ni umbrales.")
+OTHER_CAMERA_WARNING = (
+    "Este modo solo sirve para fotos de las 9 cámaras de CNR-EXT (1000×750): las cajas de los "
+    "espacios son fijas por cámara y en otra foto caen en cualquier lado. Si es de otro parqueo, "
+    f"usa {DRAW_TAB} y dibuja cada espacio."
+)
 
-app = FastAPI(title="Cupo Seguro", version="1.0",
+app = FastAPI(title="Cupo Seguro", version="1.1",
               description="Clasificación de espacios de parqueo: libre, ocupado o por verificar.")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -92,6 +112,11 @@ _feedback_lock = threading.Lock()
 @app.exception_handler(ModelUnavailableError)
 async def _model_unavailable(_: Request, exc: ModelUnavailableError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+@app.exception_handler(UnknownModelError)
+async def _unknown_model(_: Request, exc: UnknownModelError) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 @app.exception_handler(Exception)
@@ -197,10 +222,19 @@ def parse_scenario(fields: dict[str, Any]) -> str:
     return scenario
 
 
+def parse_model(value: Any) -> str | None:
+    """Id de modelo pedido (``None`` = el de por defecto); uno desconocido da 400."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if not isinstance(value, str):
+        raise HTTPException(400, "model debe ser el id de un modelo de GET /api/models.")
+    return resolve_model(value)[0]
+
+
 def parse_camera(raw: Any) -> int:
     if raw is None or str(raw).strip() == "":
         raise HTTPException(400, "Indica la cámara (1-9) para ubicar los espacios. Para una foto de "
-                                 "otro parqueo usa el modo 'dibujar espacios'.")
+                                 f"otro parqueo usa el modo {DRAW_TAB}.")
     try:
         camera = int(str(raw).strip())
     except ValueError:
@@ -212,7 +246,7 @@ def parse_camera(raw: Any) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Galería
+# Galería del dataset (frames, patches y mosaicos)
 # ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
@@ -226,17 +260,40 @@ def gallery_items() -> dict[str, dict[str, Any]]:
 
 
 def gallery_item(gallery_id: Any) -> dict[str, Any]:
-    item = gallery_items().get(str(gallery_id))
+    """Ejemplo de la galería del dataset o de las fotos propias; 404 si no existe."""
+    key = str(gallery_id)
+    item = gallery_items().get(key)
+    if item is None and key.startswith(OWN_PREFIX):
+        item = own_items().get(key)
     if item is None:
-        raise HTTPException(404, f"No existe el ejemplo '{_short(str(gallery_id), 40)}' en la galería.")
+        raise HTTPException(404, f"No existe el ejemplo '{_short(key, 40)}' en la galería.")
     return item
+
+
+def item_paths(item: dict[str, Any]) -> list[str]:
+    """Rutas (relativas a DATA_ROOT) que necesita un ejemplo del dataset."""
+    if item.get("kind") == "mosaic":
+        return [cell["path"] for cell in item.get("cells", [])]
+    return [item["path"]] if "path" in item else []
+
+
+def item_available(item: dict[str, Any]) -> bool:
+    if item.get("kind") == "own":
+        return Path(item["_file"]).is_file()
+    root = paths.data_root()
+    rels = item_paths(item)
+    return bool(rels) and all((root / rel).is_file() for rel in rels)
+
+
+def _missing_data(item: dict[str, Any]) -> HTTPException:
+    return HTTPException(404, f"La imagen '{item['id']}' no está en DATA_ROOT; descarga los datos con "
+                              "python scripts/download_data.py.")
 
 
 def gallery_file(item: dict[str, Any]) -> Path:
     path = paths.data_root() / item["path"]
     if not path.is_file():
-        raise HTTPException(404, f"La imagen '{item['id']}' no está en DATA_ROOT; descarga los datos con "
-                                 "python scripts/download_data.py.")
+        raise _missing_data(item)
     return path
 
 
@@ -246,6 +303,54 @@ def open_gallery_image(item: dict[str, Any]) -> Image.Image:
             return img.convert("RGB")
     except (UnidentifiedImageError, OSError):
         raise HTTPException(503, f"No se pudo leer la imagen '{item['id']}' de la galería en DATA_ROOT.")
+
+
+def mosaic_layout(item: dict[str, Any]) -> tuple[int, int, int]:
+    """(columnas, filas, lado de celda) del mosaico."""
+    grid = item.get("grid") or {}
+    return int(grid.get("cols", 4)), int(grid.get("rows", 3)), int(item.get("cell_size", MOSAIC_CELL))
+
+
+def mosaic_boxes(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """Una caja por celda, en el orden de ``cells`` (fila por fila)."""
+    cols, _, cell = mosaic_layout(item)
+    return [{"slot_id": str(c["slot_id"]), "x": (i % cols) * cell, "y": (i // cols) * cell, "w": cell, "h": cell}
+            for i, c in enumerate(item["cells"])]
+
+
+@lru_cache(maxsize=8)
+def _mosaic_cached(gallery_id: str, root: str) -> Image.Image:
+    # ``root`` forma parte de la llave del caché por si cambia DATA_ROOT
+    item = gallery_items()[gallery_id]
+    cols, rows, cell = mosaic_layout(item)
+    canvas = Image.new("RGB", (cols * cell, rows * cell), (40, 40, 40))
+    for box, c in zip(mosaic_boxes(item), item["cells"]):
+        with Image.open(Path(root) / c["path"]) as patch:
+            tile = patch.convert("RGB")
+        if tile.size != (cell, cell):
+            tile = tile.resize((cell, cell), Image.Resampling.BILINEAR)
+        canvas.paste(tile, (box["x"], box["y"]))
+    return canvas
+
+
+def mosaic_image(item: dict[str, Any]) -> Image.Image:
+    """Compone el mosaico al vuelo con los patches de CNRPark (cuadrícula de celdas de 150)."""
+    if not item_available(item):
+        raise _missing_data(item)
+    try:
+        return _mosaic_cached(item["id"], str(paths.data_root())).copy()
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(503, f"No se pudo leer algún patch del mosaico '{item['id']}' en DATA_ROOT.")
+
+
+def _folder_label(rel_path: str) -> int | None:
+    """Etiqueta de un patch de CNRPark según su carpeta (busy = 1, free = 0)."""
+    parts = Path(rel_path).parts
+    if "busy" in parts:
+        return 1
+    if "free" in parts:
+        return 0
+    return None
 
 
 def frame_ground_truth(item: dict[str, Any]) -> dict[str, int] | None:
@@ -281,12 +386,107 @@ def patch_ground_truth(item: dict[str, Any]) -> int | None:
     """
     if not show_ground_truth():
         return None
-    parts = Path(item["path"]).parts
-    if "busy" in parts:
-        return 1
-    if "free" in parts:
-        return 0
-    return None
+    return _folder_label(item["path"])
+
+
+def mosaic_ground_truth(item: dict[str, Any]) -> dict[str, int] | None:
+    """Etiquetas de las celdas de un mosaico (carpeta busy/free), solo con ``SHOW_GROUND_TRUTH=1``."""
+    if not show_ground_truth():
+        return None
+    out = {str(c["slot_id"]): _folder_label(c["path"]) for c in item["cells"]}
+    return {k: v for k, v in out.items() if v is not None}
+
+
+# ---------------------------------------------------------------------------
+# Galería de fotos propias (carpeta local, no se versiona)
+# ---------------------------------------------------------------------------
+
+def own_gallery_dir() -> Path:
+    """``$OWN_GALLERY_DIR`` (las relativas, desde el repo) o ``app/galeria_propia``."""
+    raw = os.environ.get(OWN_GALLERY_ENV)
+    if not raw:
+        return DEFAULT_OWN_GALLERY
+    path = Path(raw).expanduser()
+    return path if path.is_absolute() else paths.repo_root() / path
+
+
+def read_boxes_file(path: Path) -> list[Any] | None:
+    """Cajas de ``<foto>.json`` (``{image, boxes: [...]}`` o una lista); None si no hay o no es válido."""
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_JSON_BYTES:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        logger.warning("No se pudo leer %s", path.name)
+        return None
+    boxes = data.get("boxes") if isinstance(data, dict) else data
+    return boxes if isinstance(boxes, list) and boxes else None
+
+
+def _own_item(image: Path) -> dict[str, Any]:
+    boxes_file = image.with_suffix(".json")
+    boxes = read_boxes_file(boxes_file)
+    return {
+        "id": OWN_PREFIX + image.stem,
+        "kind": "own",
+        "subset": "UVG",
+        "title": image.stem.replace("_", " "),
+        "filename": image.name,
+        "has_boxes": boxes is not None,
+        "n_boxes": len(boxes) if boxes else 0,
+        "note": "" if boxes else "sin cajas guardadas: se abre en modo dibujar",
+        "_file": str(image),
+        "_boxes_file": str(boxes_file),
+    }
+
+
+def own_items() -> dict[str, dict[str, Any]]:
+    """Fotos propias ``<foto>.jpg|jpeg|png`` de la carpeta local (se vuelve a leer en cada llamada).
+
+    Los ids salen del listado de la carpeta y los nombres se validan: no se aceptan rutas, así que
+    un id no puede apuntar fuera de la carpeta.
+    """
+    folder = own_gallery_dir()
+    if not folder.is_dir():
+        return {}
+    base = folder.resolve()
+    items: dict[str, dict[str, Any]] = {}
+    for image in sorted(folder.iterdir()):
+        if (image.suffix.lower() not in OWN_IMAGE_TYPES or not OWN_NAME_RE.match(image.stem)
+                or ".." in image.name or not image.is_file()):
+            continue
+        if image.resolve().parent != base:  # enlaces que apuntan fuera de la carpeta
+            continue
+        item = _own_item(image)
+        items.setdefault(item["id"], item)
+    return items
+
+
+def open_own_image(item: dict[str, Any]) -> Image.Image:
+    path = Path(item["_file"])
+    try:
+        data = path.read_bytes()
+    except OSError:
+        raise HTTPException(404, f"La foto '{item['filename']}' ya no está en la galería local.")
+    return open_upload(data, item["filename"])
+
+
+def own_boxes(item: dict[str, Any], img: Image.Image) -> tuple[list[dict[str, Any]], list[str]]:
+    raw = read_boxes_file(Path(item["_boxes_file"]))
+    if raw is None:
+        stem = Path(item["filename"]).stem
+        raise HTTPException(400, f"La foto '{item['filename']}' no tiene cajas guardadas ({stem}.json): "
+                                 f"dibújalas en {DRAW_TAB} y guárdalas con 'Guardar cajas'.")
+    return parse_boxes(raw, img.width, img.height)
+
+
+def open_item_image(item: dict[str, Any]) -> Image.Image:
+    kind = item.get("kind")
+    if kind == "mosaic":
+        return mosaic_image(item)
+    if kind == "own":
+        return open_own_image(item)
+    return open_gallery_image(item)
 
 
 def source_info(item: dict[str, Any] | None, filename: str = "") -> dict[str, Any]:
@@ -357,13 +557,19 @@ def run_prediction(pred: Predictor, img: Image.Image, boxes: list[dict[str, Any]
     return result
 
 
+def model_brief(pred: Predictor) -> dict[str, Any]:
+    """Qué modelo produjo la predicción (va en cada respuesta)."""
+    return {"id": pred.model_id, "label": pred.label, "name": pred.card.get("name"),
+            "run_id": pred.card.get("run_id"), "kind": pred.kind}
+
+
 def finish(result: dict[str, Any], pred: Predictor, mode: str, source: dict[str, Any],
            quality: dict[str, Any], warnings: list[str], t0: float) -> dict[str, Any]:
     model_ms = result.pop("model_ms")
     result.update({
         "mode": mode,
         "source": source,
-        "model": {"name": pred.card.get("name"), "run_id": pred.card.get("run_id")},
+        "model": model_brief(pred),
         "latency_ms": {"total": round((time.perf_counter() - t0) * 1000.0, 1),
                        "model": round(model_ms, 1), "n_slots": len(result["slots"])},
         "quality": {k: v for k, v in quality.items() if k != "warnings"},
@@ -385,7 +591,7 @@ def camera_boxes(camera: int) -> tuple[tuple[str, int, int, int, int], ...]:
         return _camera_boxes_cached(camera, str(paths.data_root()))
     except Exception:  # CSV ausente o con otro formato
         raise HTTPException(503, f"Faltan las cajas de la cámara {camera} en DATA_ROOT; usa el modo "
-                                 "'dibujar espacios'.")
+                                 f"{DRAW_TAB}.")
 
 
 def scaled_camera_boxes(camera: int, img: Image.Image) -> tuple[list[dict[str, Any]], list[str]]:
@@ -401,50 +607,86 @@ def scaled_camera_boxes(camera: int, img: Image.Image) -> tuple[list[dict[str, A
     return out, warnings
 
 
-def predict_frame_sync(payload: Payload) -> dict[str, Any]:
-    t0 = time.perf_counter()
-    scenario = parse_scenario(payload.fields)
-    gallery_id = payload.fields.get("gallery_id")
-    item = None
-    if payload.file_bytes is None and gallery_id:
-        item = gallery_item(gallery_id)
-        if item["kind"] != "frame":
-            raise HTTPException(400, f"'{item['id']}' es la foto de un solo espacio; usa /api/predict/patch.")
-        camera = int(item["camera"])
-    elif payload.file_bytes is not None:
-        camera = parse_camera(payload.fields.get("camera"))
-    else:
-        raise HTTPException(400, "Elige un ejemplo de la galería (gallery_id) o sube una imagen con su cámara.")
-    img = open_gallery_image(item) if item else open_upload(payload.file_bytes or b"", payload.filename)
+def _check_frame_size(img: Image.Image) -> None:
     if img.width < MIN_FRAME_SIZE[0] or img.height < MIN_FRAME_SIZE[1]:
         raise HTTPException(400, f"La imagen ({img.width}x{img.height}) es demasiado pequeña para un frame "
                                  f"completo (mínimo {MIN_FRAME_SIZE[0]}x{MIN_FRAME_SIZE[1]}). Para la foto de "
                                  "un solo espacio usa el modo 'un espacio'.")
+
+
+@dataclass
+class FrameInput:
+    """Imagen, cajas y etiquetas (opcionales) de una predicción de frame."""
+
+    img: Image.Image
+    boxes: list[dict[str, Any]]
+    warnings: list[str]
+    truth: dict[str, int] | None
+    source: dict[str, Any]
+
+
+def gallery_frame_input(item: dict[str, Any]) -> FrameInput:
+    """Frame de CNR-EXT (cajas de su cámara), mosaico de CNRPark (celdas) o foto propia (su JSON)."""
+    kind = item.get("kind")
+    if kind == "patch":
+        raise HTTPException(400, f"'{item['id']}' es la foto de un solo espacio; usa /api/predict/patch.")
+    img = open_item_image(item)
+    if kind == "mosaic":
+        return FrameInput(img, mosaic_boxes(item), [], mosaic_ground_truth(item), source_info(item))
+    if kind == "own":
+        boxes, warnings = own_boxes(item, img)
+        return FrameInput(img, boxes, warnings, None, source_info(item))
+    camera = int(item["camera"])
+    _check_frame_size(img)
     boxes, warnings = scaled_camera_boxes(camera, img)
-    pred = store.get()
-    truth = frame_ground_truth(item) if item else None
-    result = run_prediction(pred, img, boxes, scenario, truth)
-    source = source_info(item, payload.filename) | {"camera": camera}
-    return finish(result, pred, "frame", source, image_quality(img), warnings, t0)
+    return FrameInput(img, boxes, warnings, frame_ground_truth(item), source_info(item) | {"camera": camera})
+
+
+def upload_frame_input(payload: Payload) -> FrameInput:
+    """Foto subida de una cámara de CNR-EXT: se usan las cajas fijas de esa cámara."""
+    camera = parse_camera(payload.fields.get("camera"))
+    img = open_upload(payload.file_bytes or b"", payload.filename)
+    _check_frame_size(img)
+    boxes, warnings = scaled_camera_boxes(camera, img)
+    if img.size != frames.FULL_SIZE:
+        warnings.append(f"La imagen mide {img.width}x{img.height}. " + OTHER_CAMERA_WARNING)
+    return FrameInput(img, boxes, warnings, None, source_info(None, payload.filename) | {"camera": camera})
+
+
+def predict_frame_sync(payload: Payload) -> dict[str, Any]:
+    t0 = time.perf_counter()
+    scenario = parse_scenario(payload.fields)
+    model_id = parse_model(payload.fields.get("model"))
+    gallery_id = payload.fields.get("gallery_id")
+    if payload.file_bytes is None and gallery_id:
+        frame = gallery_frame_input(gallery_item(gallery_id))
+    elif payload.file_bytes is not None:
+        frame = upload_frame_input(payload)
+    else:
+        raise HTTPException(400, "Elige un ejemplo de la galería (gallery_id) o sube una imagen con su cámara.")
+    pred = store.get(model_id)
+    result = run_prediction(pred, frame.img, frame.boxes, scenario, frame.truth)
+    return finish(result, pred, "frame", frame.source, image_quality(frame.img), frame.warnings, t0)
 
 
 def predict_patch_sync(payload: Payload) -> dict[str, Any]:
     t0 = time.perf_counter()
     scenario = parse_scenario(payload.fields)
+    model_id = parse_model(payload.fields.get("model"))
     gallery_id = payload.fields.get("gallery_id")
     item = None
     if payload.file_bytes is None and gallery_id:
         item = gallery_item(gallery_id)
         if item["kind"] != "patch":
-            raise HTTPException(400, f"'{item['id']}' es un frame completo; usa /api/predict/frame.")
+            raise HTTPException(400, f"'{item['id']}' no es la foto de un solo espacio; usa /api/predict/frame.")
     elif payload.file_bytes is None:
         raise HTTPException(400, "Sube la foto de un espacio o elige un ejemplo de la galería (gallery_id).")
     img = open_gallery_image(item) if item else open_upload(payload.file_bytes or b"", payload.filename)
-    pred = store.get()
+    pred = store.get(model_id)
     warnings: list[str] = []
     if max(img.size) > PATCH_MAX_SIDE:
         warnings.append(f"La imagen ({img.width}x{img.height}) parece mostrar más de un espacio; este modo "
-                        "espera la foto de un solo espacio. Para varios, usa 'dibujar espacios'.")
+                        f"espera la foto de un solo espacio. Para varios, usa {DRAW_TAB}.")
     box = {"slot_id": item["id"] if item else "espacio", "x": 0, "y": 0, "w": img.width, "h": img.height}
     truth = None
     if item is not None and show_ground_truth():
@@ -505,15 +747,16 @@ def parse_boxes(raw: Any, width: int, height: int) -> tuple[list[dict[str, Any]]
 def predict_custom_sync(payload: Payload) -> dict[str, Any]:
     t0 = time.perf_counter()
     scenario = parse_scenario(payload.fields)
+    model_id = parse_model(payload.fields.get("model"))
     gallery_id = payload.fields.get("gallery_id")
     item = None
     if payload.file_bytes is None and gallery_id:
         item = gallery_item(gallery_id)
     elif payload.file_bytes is None:
         raise HTTPException(400, "Sube una imagen (o elige una de la galería) y dibuja los espacios.")
-    img = open_gallery_image(item) if item else open_upload(payload.file_bytes or b"", payload.filename)
+    img = open_item_image(item) if item else open_upload(payload.file_bytes or b"", payload.filename)
     boxes, warnings = parse_boxes(payload.fields.get("boxes"), img.width, img.height)
-    pred = store.get()
+    pred = store.get(model_id)
     result = run_prediction(pred, img, boxes, scenario)
     return finish(result, pred, "custom", source_info(item, payload.filename), image_quality(img), warnings, t0)
 
@@ -527,54 +770,139 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/api/models")
+def models() -> dict[str, Any]:
+    """Modelos seleccionables (pares ``<stem>.onnx|.joblib`` + ``<stem>.json`` de la carpeta del modelo)."""
+    return {"models": list_models(), "default": default_model_id()}
+
+
+ITERATIONS_CSV = paths.results_dir() / "iteraciones.csv"
+B1_NAME = "b1_hog_lr"
+
+
+@lru_cache(maxsize=4)
+def _hours_uvg_cached(csv_path: str, mtime: float) -> dict[str, float]:
+    """``name`` → horas ahorradas por semestre en val (escenario UVG) de la tabla de iteraciones."""
+    import csv
+
+    out: dict[str, float] = {}
+    with open(csv_path, encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            try:
+                out[row["name"]] = float(row["val_hours_uvg"])
+            except (KeyError, TypeError, ValueError):
+                continue
+    return out
+
+
+def hours_uvg_by_name() -> dict[str, float]:
+    try:
+        return _hours_uvg_cached(str(ITERATIONS_CSV), ITERATIONS_CSV.stat().st_mtime)
+    except OSError:
+        return {}
+
+
+def time_benefit(name: Any) -> dict[str, Any] | None:
+    """Minutos que ahorra cada conductor en el parqueo UVG con este modelo (val, modelo de valor).
+
+    minutos por llegada = horas ahorradas por semestre × 60 / (llegadas por día × días del semestre).
+    """
+    hours = hours_uvg_by_name()
+    if not isinstance(name, str) or name not in hours:
+        return None
+    params = load_scenario("uvg")["params"]
+    arrivals = float(params["llegadas_dia"]) * float(params["dias_semestre"])
+    t_base = float(params["t_base_min"])
+    saved = hours[name] * 60.0 / arrivals
+    # t_base − ahorro = T_sys del modelo de valor porque en UVG no hay abandono (abandono_base = 0)
+    out: dict[str, Any] = {
+        "escenario": "uvg",
+        "t_base_min": t_base,
+        "minutos_ahorrados": round(saved, 2),
+        "minutos_con_sistema": round(max(t_base - saved, 0.0), 2),
+        "horas_semestre": round(hours[name]),
+        "llegadas_dia": int(params["llegadas_dia"]),
+        "dias_semestre": int(params["dias_semestre"]),
+        "fuente": "results/iteraciones.csv (validación) y configs/value/uvg.yaml",
+    }
+    if name != B1_NAME and B1_NAME in hours:
+        out["segundos_vs_b1"] = round((hours[name] - hours[B1_NAME]) * 3600.0 / arrivals, 1)
+    return out
+
+
 @app.get("/api/model")
-def model_info() -> dict[str, Any]:
-    pred = store.get()
+def model_info(model: str | None = None) -> dict[str, Any]:
+    pred = store.get(parse_model(model))
     card = pred.card
-    onnx_path = pred.onnx_path
-    bench = load_benchmark(onnx_path)
+    model_file = pred.model_file
+    bench = load_benchmark(model_file)
     if bench is not None:
-        # Si el benchmark es de otro modelo (no se volvió a medir tras reemplazarlo), se avisa
+        # El benchmark de la carpeta es de un solo modelo: los demás no lo muestran
         bench["matches_model"] = bench.get("run_id") == card.get("run_id")
     try:
-        size_mb: float | None = round(onnx_path.stat().st_size / (1024 * 1024), 3)
+        size_mb: float | None = round(model_file.stat().st_size / (1024 * 1024), 3)
     except OSError:
         size_mb = None
     return {
+        "id": pred.model_id,
+        "label": pred.label,
+        "kind": pred.kind,
+        "is_default": pred.model_id == default_model_id(),
         "name": card.get("name"),
         "run_id": card.get("run_id"),
         "model": card.get("model"),
-        "onnx_file": onnx_path.name,
+        "onnx_file": model_file.name,
+        "model_file": model_file.name,
         "size_mb": size_mb,
         "input_size": pred.input_size,
+        "hog": card.get("hog"),
         "temperature": pred.temperature,
         "calibrated": bool(card.get("calibrated", False)),
         "select_scenario": card.get("select_scenario"),
         "thresholds": pred.thresholds,
         "val_metrics": card.get("val_metrics_summary"),
         "benchmark": bench,
+        "time_benefit": time_benefit(card.get("name")),
         "exported_at": card.get("exported_at"),
         "rule": "LIBRE si p < t_L; OCUPADO si p >= t_H; POR VERIFICAR en el resto (p = P(ocupado)).",
     }
 
 
+GALLERY_KEYS = ("id", "kind", "subset", "title", "camera", "weather", "date", "time", "note",
+                "split_origin", "hard")
+
+
 @app.get("/api/gallery")
 def gallery() -> dict[str, Any]:
-    root = paths.data_root()
     items = []
     for item in gallery_items().values():
-        items.append({k: item.get(k) for k in ("id", "kind", "subset", "title", "camera", "weather",
-                                                "date", "time", "note", "split_origin")}
-                     | {"image_url": f"/api/gallery/{item['id']}/image",
-                        "available": (root / item["path"]).is_file()})
-    return {"items": items, "ground_truth_enabled": show_ground_truth(),
+        extra = {"n_cells": len(item.get("cells", []))} if item.get("kind") == "mosaic" else {}
+        items.append({k: item.get(k) for k in GALLERY_KEYS} | extra
+                     | {"image_url": f"/api/gallery/{item['id']}/image", "available": item_available(item)})
+    own = [{k: v for k, v in it.items() if not k.startswith("_")}
+           | {"image_url": f"/api/gallery/{it['id']}/image", "available": True}
+           for it in own_items().values()]
+    return {"items": items + own, "ground_truth_enabled": show_ground_truth(),
             "note": ("Solo imágenes nunca vistas en el entrenamiento: frames de fechas de test de "
-                     "CNR-EXT y patches de CNRPark A/B (otro parqueo).")}
+                     "CNR-EXT y patches de CNRPark A/B (otro parqueo)."),
+            "own_note": ("Fotos propias de la carpeta local (no se versiona): se analizan con sus "
+                         "cajas guardadas en <foto>.json.")}
 
 
 @app.get("/api/gallery/{gallery_id}/image", include_in_schema=False)
-def gallery_image(gallery_id: str) -> FileResponse:
-    return FileResponse(gallery_file(gallery_item(gallery_id)), media_type="image/jpeg")
+def gallery_image(gallery_id: str) -> Response:
+    item = gallery_item(gallery_id)
+    kind = item.get("kind")
+    if kind == "mosaic":
+        buf = io.BytesIO()
+        mosaic_image(item).save(buf, "JPEG", quality=95)
+        return Response(buf.getvalue(), media_type="image/jpeg")
+    if kind == "own":
+        path = Path(item["_file"])
+        if not path.is_file():
+            raise HTTPException(404, f"La foto '{item['filename']}' ya no está en la galería local.")
+        return FileResponse(path, media_type=OWN_IMAGE_TYPES[path.suffix.lower()])
+    return FileResponse(gallery_file(item), media_type="image/jpeg")
 
 
 @app.post("/api/predict/frame")
@@ -618,12 +946,22 @@ def _optional_probability(value: Any) -> float | None:
 
 
 def _feedback_source(value: Any) -> str | None:
-    """Origen del reporte: un id de la galería o 'upload'."""
+    """Origen del reporte: un id de la galería (del dataset o foto propia) o 'upload'."""
     if value is None:
         return None
-    if value == UPLOAD_SOURCE or (isinstance(value, str) and value in gallery_items()):
+    if value == UPLOAD_SOURCE or (isinstance(value, str) and (
+            value in gallery_items() or (value.startswith(OWN_PREFIX) and value in own_items()))):
         return value
     raise HTTPException(400, "source debe ser un id de la galería o 'upload' (o no enviarse).")
+
+
+def _feedback_model(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        return parse_model(value)
+    except UnknownModelError:
+        raise HTTPException(400, "model debe ser el id de un modelo de GET /api/models (o no enviarse).")
 
 
 def validate_feedback(fields: dict[str, Any]) -> dict[str, Any]:
@@ -640,6 +978,7 @@ def validate_feedback(fields: dict[str, Any]) -> dict[str, Any]:
         "p_busy": _optional_probability(fields.get("p_busy")),
         "scenario": _optional_choice(fields, "scenario", SCENARIOS),
         "source": _feedback_source(fields.get("source")),
+        "model_id": _feedback_model(fields.get("model")),
     }
 
 
@@ -655,7 +994,9 @@ async def feedback(request: Request) -> dict[str, Any]:
     record = validate_feedback(fields)
     model_name = None
     try:
-        model_name = store.get().card.get("name")
+        pred = store.get(record["model_id"])
+        model_name = pred.card.get("name")
+        record["model_id"] = pred.model_id
     except ModelUnavailableError:
         pass
     record = {"timestamp": datetime.now().isoformat(timespec="seconds"), **record, "model": model_name}
