@@ -56,7 +56,8 @@ PROSE_FLAGS: dict[str, set[str]] = {
     "scripts/build_gallery.py": {"--out"},
 }
 # Flags de herramientas externas (pip, uvicorn) que también aparecen en el README.
-EXTERNAL_FLAGS = {"--no-deps", "--index-url", "--upgrade", "--port"}
+EXTERNAL_FLAGS = {"--no-deps", "--index-url", "--upgrade", "--port",
+                  "--to", "--execute", "--inplace"}  # jupyter nbconvert (notebook de explicabilidad)
 
 
 # ---------------------------------------------------------------------------
