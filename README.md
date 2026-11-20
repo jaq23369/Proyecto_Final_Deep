@@ -17,10 +17,11 @@ de Joel Jaquez y Kevin Villagran.
 8. [Evaluación, tabla de resultados, figuras y EDA](#evaluación-tabla-de-resultados-figuras-y-eda)
 9. [Modelo de valor](#modelo-de-valor)
 10. [Modelo final: ONNX, latencia, costo y Grad-CAM](#modelo-final-onnx-latencia-costo-y-grad-cam)
-11. [App de demostración](#app-de-demostración)
-12. [Pruebas](#pruebas)
-13. [Consejos de rendimiento](#consejos-de-rendimiento)
-14. [Créditos y licencia del dataset](#créditos-y-licencia-del-dataset)
+11. [Explicabilidad del modelo final](#explicabilidad-del-modelo-final)
+12. [App de demostración](#app-de-demostración)
+13. [Pruebas](#pruebas)
+14. [Consejos de rendimiento](#consejos-de-rendimiento)
+15. [Créditos y licencia del dataset](#créditos-y-licencia-del-dataset)
 
 ## Qué es Cupo Seguro
 
@@ -84,7 +85,8 @@ proyecto_final_deep/
 │  └─ export_classical.py    baseline B1 para el selector de modelos de la app → models/
 ├─ app/                      app FastAPI: main.py (API), inference.py (ONNX y clásico), static/ (dashboard)
 ├─ models/                   best.onnx + best.json del modelo final y los baselines (no se versionan; ver abajo)
-├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones
+├─ notebooks/                explicabilidad.ipynb: Grad-CAM, oclusión y fidelidad del modelo final
+├─ results/                  sí se versiona: eda/, figures/, xai/ (explicabilidad), tablas de iteraciones
 ├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
 ├─ tests/                    pruebas (pytest)
 └─ runs/                     una carpeta por corrida (no se versiona)
@@ -614,6 +616,65 @@ Grad-CAM propio (hooks sobre la última capa convolucional) sobre aciertos y err
 prioridad a los errores ocupado→libre. Escribe `results/figures/gradcam_<run_id>_val.png` y
 `.csv`. Solo para runs de PyTorch y solo en val: `--split test` y `--split ood` se rechazan
 siempre (el flag existe, pero el script termina con error). Opciones: `--out`, `--device`.
+
+## Explicabilidad del modelo final
+
+`notebooks/explicabilidad.ipynb` explica el modelo final (`mnv3_ft_cost`, semilla 42) **sin
+reentrenarlo**. Usa Grad-CAM como método principal y oclusión como alternativa y como prueba de
+fidelidad, y compara con el baseline interpretable B1 (HOG + regresión logística). La lógica vive en
+`src/cupo/explain.py` y Grad-CAM en `scripts/gradcam.py`.
+
+| Parte del notebook | Qué hace | Salida en `results/xai/` |
+|---|---|---|
+| Explicaciones locales | 6 instancias de test elegidas con reglas fijas: acierto ocupado y libre con confianza alta, error ocupado→libre, caso más cercano a `t_H`, acierto con lluvia y error libre→ocupado | `instancias.csv`, `locales.png` |
+| Explicación global | Muestra estratificada de test por clase y clima: mapa promedio y parte de la atención en el centro del parche | `global.csv`, `global.png` |
+| Fidelidad | Tapa la zona que marca Grad-CAM y la compara con tapar la zona menos marcada y zonas al azar; repite con oclusión | `fidelidad.csv` |
+| Errores ocupado→libre | Grad-CAM de los errores caros de test | `errores_ocupado_libre.png` |
+| Baseline B1 | Contribución de cada bloque HOG al log-odds de "ocupado" | `baseline_b1.png` |
+| Costo y sensibilidad | Milisegundos por explicación (Grad-CAM frente a oclusión) y efecto de la capa objetivo y de la ventana de oclusión | `costo.csv`, `sensibilidad.csv` |
+| Parámetros y resumen | Semilla, capa objetivo, ventana, fracción tapada, tamaño de la muestra y números clave | `parametros.json`, `resumen.json` |
+
+### Qué necesita
+
+- **Dependencias del notebook**, que no están en `requirements.txt`:
+
+  ```bash
+  python -m pip install nbformat nbconvert ipykernel
+  ```
+
+- **Los datos** en `DATA_ROOT` (por defecto `../Data`; ver [Datos](#datos)).
+- **El run del modelo final** en `runs/mnv3_ft_cost_s42_<fecha>/` con `config.yaml`, `best.pt`,
+  `thresholds.json` (y `calibration.json` si lo tiene) y `test_preds.npz`. Si no lo tienes, se
+  regenera con:
+
+  ```bash
+  python -m cupo.train --config configs/mnv3_ft_cost.yaml
+  python -m cupo.evaluate --run runs/<run_id> --split test --allow-test
+  ```
+
+  El test se usa aquí **solo para explicar** el modelo ya congelado, nunca para elegir modelos ni
+  umbrales.
+- **El run de B1** en `runs/b1_hog_lr_s42_<fecha>/` con `model.joblib`
+  (`python scripts/train_classical.py --config configs/b1_hog_lr.yaml`).
+
+### Cómo ejecutarlo
+
+Desde la raíz del repositorio, con el entorno virtual activado:
+
+```bash
+python -m jupyter nbconvert --to notebook --execute --inplace \
+    --ExecutePreprocessor.timeout=-1 notebooks/explicabilidad.ipynb
+```
+
+O ábrelo en VS Code o Jupyter y ejecuta todas las celdas en orden. El notebook busca el run más
+reciente que coincida con `runs/mnv3_ft_cost_s42_*` y usa GPU si hay una disponible.
+
+**Reproducibilidad:** la semilla es 42 (NumPy, PyTorch y la selección de instancias) y cuDNN corre
+en modo determinista. En una misma máquina, volver a ejecutarlo deja `results/xai/` idéntico byte a
+byte, salvo `costo.csv`, que mide tiempos. En otra GPU las instancias elegidas y los parámetros son
+los mismos, pero los mapas pueden variar en la tercera cifra decimal (diferencias relativas de
+alrededor de 1 % en las tablas) por cómo cada tarjeta redondea las operaciones de punto flotante; las
+conclusiones no cambian.
 
 ## App de demostración
 
