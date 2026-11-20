@@ -2,6 +2,7 @@
 
 Uso:
     python -m cupo.benchmark --onnx models/best.onnx [--run runs/<id>] [--n 300] [--out DIR]
+    python -m cupo.benchmark --joblib models/b1_hog_lr.joblib [--out DIR]
 
 Mide, con patches de val preprocesados con ``transforms.preprocess_numpy`` (nunca test):
 
@@ -21,6 +22,14 @@ La latencia del modelo no incluye abrir ni preprocesar la imagen; ese tiempo se 
 aparte (``preprocess_ms_per_patch``: abrir patches desde disco; en producción sería
 decodificar un frame + 46 recortes) y sí entra en el costo y en el volumen, con la misma
 base: ``(frame_mean_ms + 46 · preprocess_ms) / 46`` por predicción.
+
+Modelo clásico B1 (``--joblib`` o un ``--onnx`` con extensión ``.joblib``): mismas imágenes de
+val, mismos modos (por espacio y por frame, 1 hilo y hilos por defecto) y misma base de costo,
+sin GPU. Su preprocesamiento es abrir y decodificar el patch a RGB; la "latencia del modelo"
+incluye el HOG (gris, redimensionar y ``skimage.feature.hog`` con
+``cupo.classical.classical_features``, el mismo camino que la app) además de la regresión
+logística, y así queda indicado en ``model_latency_includes``. "1 hilo" limita los hilos de
+BLAS/OpenMP con ``threadpoolctl``; el HOG corre en un solo hilo en ambos casos, como en la app.
 
 Escribe ``benchmark.json`` en ``--out`` (por defecto ``models/``) y, si se pasa ``--run``,
 también en el run. ``--run`` debe ser el run del que salió el ``.onnx`` (``run_id`` del
@@ -53,29 +62,53 @@ SAMPLE_SEED = 0
 SCENARIOS: tuple[str, ...] = ("comercial", "uvg")
 PREPROCESS_BASIS = ("abrir patches desde disco + preprocess_numpy; en producción sería "
                     "decodificar un frame + 46 recortes")
+PREPROCESS_BASIS_CLASSICAL = ("abrir patches desde disco y decodificarlos a RGB; en producción sería "
+                              "decodificar un frame + 46 recortes")
+KIND_ONNX, KIND_CLASSICAL = "onnx", "classical"
+MODEL_LATENCY_ONNX = "solo ONNX Runtime (sin abrir ni preprocesar la imagen)"
+MODEL_LATENCY_CLASSICAL = ("HOG (RGB, gris, 64x64 y skimage.feature.hog con cupo.classical.classical_features) "
+                           "+ StandardScaler + regresión logística; sin abrir ni decodificar la imagen")
 
 
 # ---------------------------------------------------------------------------
 # Datos
 # ---------------------------------------------------------------------------
 
+def sample_val_paths(n_images: int = SLOTS_PER_FRAME, seed: int = SAMPLE_SEED) -> list[str]:
+    """Rutas de ``n_images`` patches de val elegidos con ``seed`` (las mismas para todos los modelos)."""
+    from cupo.data import load_split
+
+    df = load_split("val")
+    return list(df.sample(n=min(n_images, len(df)), random_state=seed)["path"])
+
+
 def load_val_patches(input_size: int, n_images: int = SLOTS_PER_FRAME,
                      seed: int = SAMPLE_SEED) -> tuple[np.ndarray, list[float]]:
     """Patches de val preprocesados ``[n, 3, H, W]`` y el tiempo (ms) de abrir + preprocesar cada uno."""
     from PIL import Image
 
-    from cupo.data import load_split
     from cupo.transforms import preprocess_numpy
 
-    df = load_split("val")
-    rows = df.sample(n=min(n_images, len(df)), random_state=seed)
     arrays, times_ms = [], []
-    for path in rows["path"]:
+    for path in sample_val_paths(n_images, seed):
         t0 = time.perf_counter()
         with Image.open(path) as im:
             arrays.append(preprocess_numpy(im, input_size))
         times_ms.append((time.perf_counter() - t0) * 1000)
     return np.concatenate(arrays, axis=0), times_ms
+
+
+def load_val_images(n_images: int = SLOTS_PER_FRAME, seed: int = SAMPLE_SEED) -> tuple[list[Any], list[float]]:
+    """Patches de val como imágenes RGB en memoria y el tiempo (ms) de abrir + decodificar cada uno."""
+    from PIL import Image
+
+    images, times_ms = [], []
+    for path in sample_val_paths(n_images, seed):
+        t0 = time.perf_counter()
+        with Image.open(path) as im:
+            images.append(im.convert("RGB"))
+        times_ms.append((time.perf_counter() - t0) * 1000)
+    return images, times_ms
 
 
 def make_frame_batch(patches: np.ndarray, batch: int = SLOTS_PER_FRAME) -> np.ndarray:
@@ -139,6 +172,31 @@ def bench_onnx_cpu(onnx_path: Path, patches: np.ndarray, frame: np.ndarray, n: i
         "threads": threads if threads is not None else "default",
         "per_slot": latency_stats(time_calls(run_single, n), 1),
         "per_frame": latency_stats(time_calls(run_frame, n_frame), len(frame)),
+    }
+
+
+def bench_classical_cpu(bundle: dict[str, Any], images: Sequence[Any], frame: Sequence[Any], n: int,
+                        n_frame: int, threads: int | None) -> dict[str, Any]:
+    """Latencia del baseline clásico en CPU (HOG + regresión logística) por espacio y por frame."""
+    from threadpoolctl import threadpool_limits
+
+    from cupo.classical import classical_features, classical_logits
+
+    hog_params = bundle["hog"]
+
+    def infer(batch: Sequence[Any]) -> None:
+        classical_logits(bundle, classical_features(hog_params, batch))
+
+    singles = [[im] for im in images]
+    frame = list(frame)
+    with threadpool_limits(limits=threads):
+        per_slot = latency_stats(time_calls(lambda i: infer(singles[i % len(singles)]), n), 1)
+        per_frame = latency_stats(time_calls(lambda _: infer(frame), n_frame), len(frame))
+    return {
+        "engine": "scikit-image + scikit-learn",
+        "threads": threads if threads is not None else "default",
+        "per_slot": per_slot,
+        "per_frame": per_frame,
     }
 
 
@@ -249,11 +307,18 @@ def cpu_name() -> str:
     return platform.processor() or platform.machine()
 
 
-def environment() -> dict[str, Any]:
-    import onnxruntime as ort
+def environment(kind: str = KIND_ONNX) -> dict[str, Any]:
+    env: dict[str, Any] = {"cpu": cpu_name(), "cpu_count": os.cpu_count()}
+    if kind == KIND_CLASSICAL:
+        import skimage
+        import sklearn
 
-    return {"cpu": cpu_name(), "cpu_count": os.cpu_count(), "onnxruntime": ort.__version__,
-            "python": platform.python_version(), "platform": platform.platform()}
+        env.update({"scikit-learn": sklearn.__version__, "scikit-image": skimage.__version__})
+    else:
+        import onnxruntime as ort
+
+        env["onnxruntime"] = ort.__version__
+    return {**env, "python": platform.python_version(), "platform": platform.platform()}
 
 
 # ---------------------------------------------------------------------------
@@ -262,12 +327,16 @@ def environment() -> dict[str, Any]:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Latencia, throughput y costo de inferencia.")
-    parser.add_argument("--onnx", default=str(paths.models_dir() / "best.onnx"), help="modelo ONNX")
+    parser.add_argument("--onnx", default=str(paths.models_dir() / "best.onnx"),
+                        help="modelo ONNX (un .joblib se mide como modelo clásico)")
+    parser.add_argument("--joblib", default=None,
+                        help="baseline clásico B1 (.joblib de scripts/export_classical.py); reemplaza a --onnx")
     parser.add_argument("--run", default=None, help="run de PyTorch para medir también en GPU")
     parser.add_argument("--n", type=int, default=300, help="repeticiones por espacio (batch 1)")
     parser.add_argument("--n-frame", type=int, default=None,
                         help="repeticiones por frame (por defecto min(n, 100))")
-    parser.add_argument("--out", default=str(paths.models_dir()), help="carpeta de benchmark.json")
+    parser.add_argument("--out", default=None,
+                        help="carpeta de benchmark.json (por defecto models/; obligatoria con un modelo .joblib)")
     parser.add_argument("--no-gpu", action="store_true", help="omite la medición en GPU")
     return parser.parse_args(argv)
 
@@ -280,59 +349,111 @@ def onnx_input_size(onnx_path: Path) -> int:
     return int(dims[2].dim_value)
 
 
-def model_info(onnx_path: Path) -> dict[str, Any]:
-    """Nombre y run del modelo según el ``best.json`` que acompaña al ``.onnx`` (si existe)."""
-    card_path = onnx_path.with_suffix(".json")
+def model_kind(model_path: Path) -> str:
+    """'classical' para un ``.joblib``; 'onnx' en otro caso."""
+    return KIND_CLASSICAL if model_path.suffix.lower() == ".joblib" else KIND_ONNX
+
+
+def model_path_from_args(args: argparse.Namespace) -> Path:
+    """Archivo del modelo: ``--joblib`` si se pasa; si no, ``--onnx``."""
+    return Path(args.joblib if getattr(args, "joblib", None) else args.onnx).resolve()
+
+
+def load_classical_bundle(model_path: Path) -> dict[str, Any]:
+    """Dict del ``.joblib`` del baseline (``pipeline`` + parámetros ``hog``)."""
+    import joblib
+
+    bundle = joblib.load(model_path)
+    if not isinstance(bundle, dict) or "pipeline" not in bundle or not isinstance(bundle.get("hog"), dict):
+        raise ValueError(f"{model_path.name} no tiene el formato del baseline (pipeline + hog); "
+                         "expórtalo con scripts/export_classical.py")
+    return bundle
+
+
+def model_info(model_path: Path) -> dict[str, Any]:
+    """Nombre y run del modelo según la tarjeta ``<stem>.json`` que lo acompaña (si existe)."""
+    card_path = model_path.with_suffix(".json")
     card = load_json(card_path) if card_path.exists() else {}
+    kind = model_kind(model_path)
     # Solo el nombre del archivo: el JSON puede publicarse y no debe llevar rutas locales
-    return {"onnx": onnx_path.name, "size_mb": onnx_path.stat().st_size / 1024**2,
+    return {"onnx": model_path.name if kind == KIND_ONNX else None, "file": model_path.name,
+            "kind": kind, "size_mb": model_path.stat().st_size / 1024**2,
             "name": card.get("name"), "run_id": card.get("run_id"), "model": card.get("model")}
 
 
-def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
-    onnx_path = Path(args.onnx).resolve()
-    n_frame = args.n_frame or min(args.n, 100)
+def measure_onnx(args: argparse.Namespace, onnx_path: Path, n_frame: int) -> dict[str, Any]:
+    """Mediciones del ``.onnx``: CPU 1 hilo, CPU todos los hilos y GPU (si hay run y CUDA)."""
     input_size = onnx_input_size(onnx_path)
     patches, pre_ms = load_val_patches(input_size)
     frame = make_frame_batch(patches)
-
-    cpu_1 = bench_onnx_cpu(onnx_path, patches, frame, args.n, n_frame, threads=1)
-    cpu_all = bench_onnx_cpu(onnx_path, patches, frame, args.n, n_frame, threads=None)
     gpu = None if (args.run is None or args.no_gpu) else bench_torch_gpu(args.run, patches, frame, args.n, n_frame)
+    return {
+        "input_size": input_size, "n_images": len(patches), "slots": len(frame), "pre_ms": pre_ms,
+        "cpu_1": bench_onnx_cpu(onnx_path, patches, frame, args.n, n_frame, threads=1),
+        "cpu_all": bench_onnx_cpu(onnx_path, patches, frame, args.n, n_frame, threads=None),
+        "gpu": gpu, "preprocess_basis": PREPROCESS_BASIS, "model_latency_includes": MODEL_LATENCY_ONNX,
+        "engine_note": "ONNX Runtime, 1 hilo",
+    }
+
+
+def measure_classical(args: argparse.Namespace, model_path: Path, n_frame: int) -> dict[str, Any]:
+    """Mediciones del baseline clásico en CPU (sin GPU), con las mismas imágenes y modos que ONNX."""
+    bundle = load_classical_bundle(model_path)
+    images, pre_ms = load_val_images()
+    frame = [images[i % len(images)] for i in range(SLOTS_PER_FRAME)]
+    return {
+        "input_size": int(bundle["hog"].get("image_size", 64)), "n_images": len(images),
+        "slots": len(frame), "pre_ms": pre_ms,
+        "cpu_1": bench_classical_cpu(bundle, images, frame, args.n, n_frame, threads=1),
+        "cpu_all": bench_classical_cpu(bundle, images, frame, args.n, n_frame, threads=None),
+        "gpu": None, "preprocess_basis": PREPROCESS_BASIS_CLASSICAL,
+        "model_latency_includes": MODEL_LATENCY_CLASSICAL,
+        "engine_note": "HOG + regresión logística, 1 hilo",
+    }
+
+
+def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
+    model_path = model_path_from_args(args)
+    kind = model_kind(model_path)
+    n_frame = args.n_frame or min(args.n, 100)
+    measure = measure_classical if kind == KIND_CLASSICAL else measure_onnx
+    m = measure(args, model_path, n_frame)
+    cpu_1, cpu_all, gpu, pre_ms = m["cpu_1"], m["cpu_all"], m["gpu"], m["pre_ms"]
 
     costs = load_costs()
     usd_h, gtq = float(costs["cpu_server_usd_per_hour"]), float(costs["gtq_per_usd"])
     # El primer patch incluye la carga en frío del disco; se descarta
     preprocess_ms = float(np.median(pre_ms[1:] if len(pre_ms) > 1 else pre_ms))
     frame_ms = cpu_1["per_frame"]["mean_ms"]
-    slots = len(frame)
+    slots = m["slots"]
     # Misma base que el volumen: modelo por frame + preprocesar cada espacio
     pipeline_pred_s = slots / ((frame_ms + slots * preprocess_ms) / 1000.0)
     cost = cost_per_1000(pipeline_pred_s, usd_h, gtq)
     cost_model = cost_per_1000(cpu_1["per_frame"]["throughput_pred_s"], usd_h, gtq)
     vol = volume(frame_ms, preprocess_ms, slots)
     return {
-        "model": model_info(onnx_path),
-        "input_size": input_size,
-        "data": {"split": "val", "n_images": int(len(patches)), "seed": SAMPLE_SEED},
+        "model": model_info(model_path),
+        "input_size": m["input_size"],
+        "data": {"split": "val", "n_images": int(m["n_images"]), "seed": SAMPLE_SEED},
         "warmup": WARMUP,
         "n_slot": int(args.n),
         "n_frame": int(n_frame),
         "preprocess_ms_per_patch": preprocess_ms,
-        "preprocess_basis": PREPROCESS_BASIS,
+        "preprocess_basis": m["preprocess_basis"],
+        "model_latency_includes": m["model_latency_includes"],
         "cpu_1_thread": cpu_1,
         "cpu_all_threads": cpu_all,
         "gpu_torch": gpu,
         "costo_por_1000_pred_Q": cost["q"],
         "cost": {**cost,
-                 "basis": "1 núcleo (ONNX Runtime, 1 hilo), modo frame, modelo + preprocesamiento",
+                 "basis": f"1 núcleo ({m['engine_note']}), modo frame, modelo + preprocesamiento",
                  "pipeline_pred_s": pipeline_pred_s,
                  "model_only": {**cost_model, "basis": "1 núcleo, modo frame, solo el modelo"},
                  "estimate_note": f"estimación con 1 núcleo medido en {cpu_name()}",
                  "cpu_server_usd_per_hour": usd_h, "gtq_per_usd": gtq},
         "volume": vol,
         "volume_by_scenario": scenario_volume(vol["seconds_per_frame_1core"]),
-        "env": environment(),
+        "env": environment(kind),
         "measured_at": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -343,9 +464,11 @@ def _fmt(block: dict[str, Any]) -> str:
 
 
 def print_report(res: dict[str, Any]) -> None:
-    print(f"Modelo: {res['model']['name'] or res['model']['onnx']} ({res['model']['size_mb']:.2f} MB), "
+    info = res["model"]
+    print(f"Modelo: {info['name'] or info.get('file') or info['onnx']} ({info['size_mb']:.2f} MB), "
           f"CPU: {res['env']['cpu']}")
-    print(f"Preprocesamiento por patch (abrir + preprocess_numpy): {res['preprocess_ms_per_patch']:.2f} ms")
+    print(f"Preprocesamiento por patch ({res['preprocess_basis']}): {res['preprocess_ms_per_patch']:.2f} ms")
+    print(f"Latencia del modelo: {res['model_latency_includes']}")
     for key, label in (("cpu_1_thread", "CPU 1 hilo"), ("cpu_all_threads", "CPU todos los hilos"),
                        ("gpu_torch", "GPU torch")):
         block = res[key]
@@ -382,11 +505,19 @@ def check_run_matches(onnx_path: Path, run: str) -> Path:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    onnx_path = Path(args.onnx).resolve()
+    onnx_path = model_path_from_args(args)
     if not onnx_path.exists():
-        print(f"Error: no existe el modelo {args.onnx}; exporta uno con python -m cupo.export_onnx",
-              file=sys.stderr)
+        hint = ("scripts/export_classical.py" if model_kind(onnx_path) == KIND_CLASSICAL
+                else "python -m cupo.export_onnx")
+        print(f"Error: no existe el modelo {onnx_path.name}; exporta uno con {hint}", file=sys.stderr)
         return 1
+    if args.out is None:
+        if model_kind(onnx_path) == KIND_CLASSICAL:
+            # models/benchmark.json es el del modelo servido por defecto: un .joblib no lo pisa
+            print("Error: con un modelo .joblib indica --out (por ejemplo results/costo_inferencia/b1)",
+                  file=sys.stderr)
+            return 1
+        args.out = str(paths.models_dir())
     run_dir = None
     if args.run is not None:
         try:
@@ -394,7 +525,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (ValueError, FileNotFoundError) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
-    res = run_benchmark(args)
+    try:
+        res = run_benchmark(args)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     targets = [out_dir / "benchmark.json"]

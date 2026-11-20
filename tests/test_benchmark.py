@@ -88,8 +88,30 @@ def test_time_calls_runs_warmup_then_n():
 
 def test_default_out_is_models_dir():
     args = B.parse_args([])
-    assert Path(args.out) == paths.models_dir()
+    assert args.out is None  # se resuelve en main: models/ para ONNX
     assert Path(args.onnx) == paths.models_dir() / "best.onnx"
+
+
+def test_default_out_resolves_to_models_dir_for_onnx(monkeypatch, tmp_path):
+    onnx = tmp_path / "m.onnx"
+    onnx.write_bytes(b"x")
+    seen = {}
+
+    def fake_run(args):
+        seen["out"] = args.out
+        raise ValueError("corte de la prueba")
+
+    monkeypatch.setattr(B, "run_benchmark", fake_run)
+    assert B.main(["--onnx", str(onnx)]) == 1
+    assert Path(seen["out"]) == paths.models_dir()
+
+
+def test_classical_model_requires_out(monkeypatch, tmp_path, capsys):
+    joblib_file = tmp_path / "b1.joblib"
+    joblib_file.write_bytes(b"x")
+    monkeypatch.setattr(B, "run_benchmark", lambda args: pytest.fail("no debe medir sin --out"))
+    assert B.main(["--joblib", str(joblib_file)]) == 1
+    assert "--out" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

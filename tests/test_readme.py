@@ -51,7 +51,9 @@ PROSE_FLAGS: dict[str, set[str]] = {
                                 "--table-out"},
     "scripts/eda.py": {"--sample-per-split", "--seed", "--out", "--full-hash"},
     "cupo.export_onnx": {"--run", "--out", "--opset", "--n-check"},
-    "cupo.benchmark": {"--onnx", "--run", "--n", "--n-frame", "--out", "--no-gpu"},
+    "cupo.benchmark": {"--onnx", "--joblib", "--run", "--n", "--n-frame", "--out", "--no-gpu"},
+    "scripts/inference_costs.py": {"--models", "--ref", "--n", "--n-frame", "--no-gpu",
+                                   "--skip-measure", "--out"},
     "scripts/gradcam.py": {"--run", "--split", "--n", "--out", "--device"},
     "scripts/build_gallery.py": {"--out"},
 }
@@ -157,7 +159,7 @@ def test_readme_lists_expected_commands():
         "cupo.train", "cupo.evaluate", "cupo.calibrate", "cupo.export_onnx", "cupo.benchmark",
         "scripts/download_data.py", "scripts/eda.py", "scripts/train_classical.py",
         "scripts/results_table.py", "scripts/make_figures.py", "scripts/gradcam.py",
-        "scripts/build_gallery.py",
+        "scripts/build_gallery.py", "scripts/export_classical.py", "scripts/inference_costs.py",
     }
     assert expected <= set(COMMANDS), f"faltan en el README: {expected - set(COMMANDS)}"
 

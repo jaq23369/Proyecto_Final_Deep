@@ -162,9 +162,9 @@ def decide(p: float, t_low: float, t_high: float) -> str:
 
 def _classical_features(bundle: dict[str, Any], crops: Sequence[Image.Image]) -> np.ndarray:
     """HOG de cada recorte con los parámetros guardados en el ``.joblib`` del entrenamiento."""
-    from cupo.classical import hog_image
+    from cupo.classical import classical_features
 
-    return np.stack([hog_image(c.convert("RGB"), **bundle["hog"]) for c in crops])
+    return classical_features(bundle["hog"], crops)
 
 
 def _classical_run(bundle: dict[str, Any], feats: np.ndarray) -> np.ndarray:

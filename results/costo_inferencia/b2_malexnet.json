@@ -1,0 +1,137 @@
+{
+  "model": {
+    "onnx": "b2_malexnet.onnx",
+    "file": "b2_malexnet.onnx",
+    "kind": "onnx",
+    "size_mb": 0.1908397674560547,
+    "name": "b2_malexnet",
+    "run_id": "b2_malexnet_s42_20261112-1117",
+    "model": "malexnet"
+  },
+  "input_size": 224,
+  "data": {
+    "split": "val",
+    "n_images": 46,
+    "seed": 0
+  },
+  "warmup": 10,
+  "n_slot": 300,
+  "n_frame": 100,
+  "preprocess_ms_per_patch": 1.9115999893983826,
+  "preprocess_basis": "abrir patches desde disco + preprocess_numpy; en producción sería decodificar un frame + 46 recortes",
+  "model_latency_includes": "solo ONNX Runtime (sin abrir ni preprocesar la imagen)",
+  "cpu_1_thread": {
+    "engine": "onnxruntime",
+    "threads": 1,
+    "per_slot": {
+      "batch": 1,
+      "n": 300,
+      "p50_ms": 2.1896999969612807,
+      "p95_ms": 3.0309849957120605,
+      "mean_ms": 2.2955699995994414,
+      "throughput_pred_s": 435.62165395718364
+    },
+    "per_frame": {
+      "batch": 46,
+      "n": 100,
+      "p50_ms": 91.35365000111051,
+      "p95_ms": 105.82500999953481,
+      "mean_ms": 93.1618529993284,
+      "throughput_pred_s": 493.7643307752972
+    }
+  },
+  "cpu_all_threads": {
+    "engine": "onnxruntime",
+    "threads": "default",
+    "per_slot": {
+      "batch": 1,
+      "n": 300,
+      "p50_ms": 1.866300000983756,
+      "p95_ms": 2.2624449979048222,
+      "mean_ms": 1.8475246669064898,
+      "throughput_pred_s": 541.264762475084
+    },
+    "per_frame": {
+      "batch": 46,
+      "n": 100,
+      "p50_ms": 30.078399999183603,
+      "p95_ms": 35.227355001552496,
+      "mean_ms": 30.78386800014414,
+      "throughput_pred_s": 1494.2891517006444
+    }
+  },
+  "gpu_torch": {
+    "engine": "torch",
+    "device": "NVIDIA GeForce RTX 2060",
+    "amp_fp16": true,
+    "per_slot": {
+      "batch": 1,
+      "n": 300,
+      "p50_ms": 3.288849999080412,
+      "p95_ms": 4.51397500874009,
+      "mean_ms": 3.386096999893198,
+      "throughput_pred_s": 295.3252668283104
+    },
+    "per_frame": {
+      "batch": 46,
+      "n": 100,
+      "p50_ms": 10.29940000444185,
+      "p95_ms": 11.247720003302675,
+      "mean_ms": 10.277048000425566,
+      "throughput_pred_s": 4475.993495223061
+    }
+  },
+  "costo_por_1000_pred_Q": 0.0004210250556581329,
+  "cost": {
+    "core_seconds_per_1000": 3.9368576632968266,
+    "usd": 5.467857865690037e-05,
+    "q": 0.0004210250556581329,
+    "basis": "1 núcleo (ONNX Runtime, 1 hilo), modo frame, modelo + preprocesamiento",
+    "pipeline_pred_s": 254.00969136450163,
+    "model_only": {
+      "core_seconds_per_1000": 2.0252576738984436,
+      "usd": 2.812857880414505e-05,
+      "q": 0.00021659005679191688,
+      "basis": "1 núcleo, modo frame, solo el modelo"
+    },
+    "estimate_note": "estimación con 1 núcleo medido en Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "cpu_server_usd_per_hour": 0.05,
+    "gtq_per_usd": 7.7
+  },
+  "volume": {
+    "slots_per_frame": 46,
+    "refresh_s": 30.0,
+    "seconds_per_frame_1core": 0.18109545251165401,
+    "cameras_per_core": 165,
+    "cameras_per_core_at_70pct": 115,
+    "slots_per_core": 7620
+  },
+  "volume_by_scenario": {
+    "comercial": {
+      "espacios": 164,
+      "n_camaras": 9,
+      "refresh_s": 30.0,
+      "pred_per_s_needed": 5.466666666666667,
+      "core_utilization": 0.0543286357534962,
+      "target_utilization": 0.7,
+      "fits_1_core": true
+    },
+    "uvg": {
+      "espacios": 164,
+      "n_camaras": 9,
+      "refresh_s": 30.0,
+      "pred_per_s_needed": 5.466666666666667,
+      "core_utilization": 0.0543286357534962,
+      "target_utilization": 0.7,
+      "fits_1_core": true
+    }
+  },
+  "env": {
+    "cpu": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "cpu_count": 12,
+    "onnxruntime": "1.31.1",
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26300-SP0"
+  },
+  "measured_at": "2026-11-19T19:20:21"
+}

@@ -80,10 +80,11 @@ proyecto_final_deep/
 │  ├─ make_figures.py        figuras → results/figures/ (con --with-table, también la tabla)
 │  ├─ gradcam.py             Grad-CAM → results/figures/
 │  ├─ build_gallery.py       galería de demo de la app → app/gallery.json
-│  └─ export_classical.py    baseline B1 para el selector de modelos de la app → models/
+│  ├─ export_classical.py    baseline B1 para el selector de modelos de la app → models/
+│  └─ inference_costs.py     costo de inferencia de B1, B2 y el modelo final → results/costo_inferencia*
 ├─ app/                      app FastAPI: main.py (API), inference.py (ONNX y clásico), static/ (dashboard)
 ├─ models/                   best.onnx + best.json del modelo final y los baselines (no se versionan; ver abajo)
-├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones
+├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones y de costo de inferencia
 ├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
 ├─ tests/                    pruebas (pytest)
 └─ runs/                     una carpeta por corrida (no se versiona)
@@ -602,6 +603,43 @@ Escribe `benchmark.json` en `models/` y, con `--run`, también en el run (lo lee
 `--run` debe ser el run del que salió el `.onnx`: se compara con el `run_id` del `best.json` que
 está al lado; si no coincide o falta `best.json`, no se escribe nada. Opciones: `--n` (300),
 `--n-frame`, `--out`, `--no-gpu`.
+
+El baseline clásico B1 se mide con el mismo protocolo (mismas imágenes de val, por espacio y por
+frame, 1 hilo y todos los hilos, misma base de costo; sin GPU):
+
+```bash
+python -m cupo.benchmark --joblib models/b1_hog_lr.joblib --out <carpeta>
+```
+
+Con un `.joblib`, `--out` es obligatorio: así la medición de B1 nunca sobrescribe
+`models/benchmark.json`, que es el del modelo servido por defecto.
+
+En B1 la latencia del modelo incluye el cálculo de HOG (su extracción de características, con el
+mismo camino que la app) y el preprocesamiento es solo abrir y decodificar la imagen; el JSON lo
+indica en `model_latency_includes` y `preprocess_basis`.
+
+### Costo de inferencia por modelo
+
+```bash
+python scripts/inference_costs.py
+    [--models models/b1_hog_lr.joblib models/b2_malexnet.onnx models/best.onnx] [--ref b1_hog_lr]
+    [--n 300] [--n-frame N] [--no-gpu] [--skip-measure] [--out results]
+    [--iterations results/iteraciones.csv]
+```
+
+Mide B1, B2 y el modelo final uno tras otro en la misma máquina (para que la comparación sea
+justa) con `cupo.benchmark` y guarda cada medición en `results/costo_inferencia/<name>.json`; no
+escribe en `models/` ni en `runs/`. Luego arma `results/costo_inferencia.csv` y
+`results/costo_inferencia.md`: por modelo, parámetros, tamaño, latencia p50 en CPU con 1 hilo
+(por espacio y por frame), throughput, costo por 1,000 predicciones, costo de inferencia al mes
+con el volumen del escenario comercial (`configs/value/comercial.yaml`) y latencia en GPU si hay
+run y CUDA; y, desde `results/iteraciones.csv` (solo lectura), el valor comercial en val, test y
+OOD, el costo de entrenamiento y las diferencias frente a B1 (Δ valor y Δ costo de inferencia en
+Q/mes). El `.md` cierra con una frase por modelo del tipo "el modelo final genera Q… más al mes
+que B1 … con un costo extra de cómputo de Q… al mes". `--skip-measure` reusa los JSON ya medidos y
+solo rehace la tabla; `--iterations` cambia la tabla de iteraciones de donde se leen los valores.
+El valor absoluto de la latencia cambia entre sesiones y máquinas; lo que se compara es la
+diferencia entre modelos medidos en la misma sesión.
 
 ### Grad-CAM
 

@@ -1,0 +1,118 @@
+{
+  "model": {
+    "onnx": null,
+    "file": "b1_hog_lr.joblib",
+    "kind": "classical",
+    "size_mb": 0.04850292205810547,
+    "name": "b1_hog_lr",
+    "run_id": "b1_hog_lr_s42_20261111-0917",
+    "model": "hog_lr"
+  },
+  "input_size": 64,
+  "data": {
+    "split": "val",
+    "n_images": 46,
+    "seed": 0
+  },
+  "warmup": 10,
+  "n_slot": 300,
+  "n_frame": 100,
+  "preprocess_ms_per_patch": 0.4771999956574291,
+  "preprocess_basis": "abrir patches desde disco y decodificarlos a RGB; en producción sería decodificar un frame + 46 recortes",
+  "model_latency_includes": "HOG (RGB, gris, 64x64 y skimage.feature.hog con cupo.classical.classical_features) + StandardScaler + regresión logística; sin abrir ni decodificar la imagen",
+  "cpu_1_thread": {
+    "engine": "scikit-image + scikit-learn",
+    "threads": 1,
+    "per_slot": {
+      "batch": 1,
+      "n": 300,
+      "p50_ms": 2.0485999921220355,
+      "p95_ms": 3.0307349981740117,
+      "mean_ms": 2.167782000566755,
+      "throughput_pred_s": 461.3009978579743
+    },
+    "per_frame": {
+      "batch": 46,
+      "n": 100,
+      "p50_ms": 70.61354999314062,
+      "p95_ms": 84.17038999978102,
+      "mean_ms": 72.13651599944569,
+      "throughput_pred_s": 637.6798125425613
+    }
+  },
+  "cpu_all_threads": {
+    "engine": "scikit-image + scikit-learn",
+    "threads": "default",
+    "per_slot": {
+      "batch": 1,
+      "n": 300,
+      "p50_ms": 2.0109500037506223,
+      "p95_ms": 2.792990001034923,
+      "mean_ms": 2.1005903335268763,
+      "throughput_pred_s": 476.0566513323934
+    },
+    "per_frame": {
+      "batch": 46,
+      "n": 100,
+      "p50_ms": 70.86959999287501,
+      "p95_ms": 85.94003500693361,
+      "mean_ms": 71.11088300051051,
+      "throughput_pred_s": 646.8770750557234
+    }
+  },
+  "gpu_torch": null,
+  "costo_por_1000_pred_Q": 0.0002187425759835728,
+  "cost": {
+    "core_seconds_per_1000": 2.0453851260801614,
+    "usd": 2.8408126751113352e-05,
+    "q": 0.0002187425759835728,
+    "basis": "1 núcleo (HOG + regresión logística, 1 hilo), modo frame, modelo + preprocesamiento",
+    "pipeline_pred_s": 488.90548153952335,
+    "model_only": {
+      "core_seconds_per_1000": 1.5681851304227323,
+      "usd": 2.178034903364906e-05,
+      "q": 0.00016770868755909776,
+      "basis": "1 núcleo, modo frame, solo el modelo"
+    },
+    "estimate_note": "estimación con 1 núcleo medido en Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "cpu_server_usd_per_hour": 0.05,
+    "gtq_per_usd": 7.7
+  },
+  "volume": {
+    "slots_per_frame": 46,
+    "refresh_s": 30.0,
+    "seconds_per_frame_1core": 0.09408771579968743,
+    "cameras_per_core": 318,
+    "cameras_per_core_at_70pct": 223,
+    "slots_per_core": 14667
+  },
+  "volume_by_scenario": {
+    "comercial": {
+      "espacios": 164,
+      "n_camaras": 9,
+      "refresh_s": 30.0,
+      "pred_per_s_needed": 5.466666666666667,
+      "core_utilization": 0.02822631473990623,
+      "target_utilization": 0.7,
+      "fits_1_core": true
+    },
+    "uvg": {
+      "espacios": 164,
+      "n_camaras": 9,
+      "refresh_s": 30.0,
+      "pred_per_s_needed": 5.466666666666667,
+      "core_utilization": 0.02822631473990623,
+      "target_utilization": 0.7,
+      "fits_1_core": true
+    }
+  },
+  "env": {
+    "cpu": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "cpu_count": 12,
+    "scikit-learn": "1.9.1",
+    "scikit-image": "0.26.0",
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26300-SP0"
+  },
+  "measured_at": "2026-11-19T19:20:03"
+}
