@@ -38,7 +38,7 @@ params:
     confidence: estimado
   t_base_min:
     value: 7.0
-    source: "Shoup (2006) reporta ~8 min promedio de crucero en zonas congestionadas; ajustado al campus, reemplazar con medición de campo"
+    source: "Shoup (2006, Transport Policy 13(6):479-486): estudios de 1927 a 2001 con 3.5 a 14 min de búsqueda, promedio 8.1 min; INRIX (2017, encuesta a ~6,000 conductores de EE. UU.): ~12 min por búsqueda; ParkMobile (2024): ~10 min. No hay una medición publicada para Guatemala; el estudio FECAMCO (2026) reporta 3 h 10 min diarias de traslado en la Ciudad de Guatemala, la peor de la región, así que la congestión local no es menor. Se usan 7 min para el campus en hora pico; reemplazar con medición de campo"
     confidence: literatura
   t_acceso_min:
     value: 0.85
@@ -90,7 +90,7 @@ params:
     confidence: estimado
   salario_operador_Q_h:
     value: 25
-    source: "Costo por hora de un operador adicional con prestaciones"
+    source: "Costo por hora de un operador adicional con prestaciones; referencia: salario mínimo no agrícola 2026 (CE1) Q4,002.28/mes, ~Q21/h, más prestaciones"
     confidence: estimado
   precision_verificacion:
     value: 0.95
@@ -102,7 +102,7 @@ params:
     confidence: estimado
   costo_camara_Q:
     value: 1500
-    source: "Cámara IP exterior con instalación; estimado, reemplazar con cotización"
+    source: "Cámara IP exterior con instalación; conservador: en tiendas de Guatemala una cámara IP exterior de 2-5 MP cuesta Q150-Q770 y un kit de 4 cámaras Hikvision ~Q2,195 (Pacifiko, 2026); reemplazar con cotización"
     confidence: estimado
   costo_servidor_mes_Q:
     value: 400
@@ -114,7 +114,7 @@ params:
     confidence: estimado
   costo_sensor_instalado_Q:
     value: 770
-    source: "~USD 100 por espacio (sensor + instalación); estimado, reemplazar con cotización"
+    source: "~USD 100 por espacio (sensor + instalación); conservador: el USDOT ITS JPO (2020) reporta USD 300-500 por espacio para sensores ultrasónicos, así que el ahorro frente a sensores está subestimado. En Guatemala ya se usan: Centro Comercial Miraflores instaló 1,220 sensores (Quercus Technologies) y Oakland Mall tiene guiado por luces desde 2011; reemplazar con cotización"
     confidence: estimado
   mantenimiento_sensores_mes_Q:
     value: 300

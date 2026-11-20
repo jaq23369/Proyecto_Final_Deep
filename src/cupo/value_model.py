@@ -465,10 +465,31 @@ def _amber_spaces(rates: Mapping[str, Any], prm: Mapping[str, float]) -> Any:
     return prm["espacios"] * (pi * q_OV + (1 - pi) * q_LV)
 
 
+def _predictions(prm: Mapping[str, float], days: float) -> float:
+    """Predicciones del periodo: N · (3600/refresh_s) · horas_operacion_dia · días."""
+    return prm["espacios"] * (3600.0 / prm["refresh_s"]) * prm["horas_operacion_dia"] * days
+
+
+def inference_cost_period(scenario_cfg: Mapping[str, Any], cost_per_1000: float | None = None) -> dict[str, Any]:
+    """Predicciones y costo de inferencia del periodo del escenario (``pred_<periodo>``, ``costo_inf_<periodo>``).
+
+    Es la misma cuenta que entra al valor (paso 4); ``cost_per_1000`` (Q por 1000 predicciones)
+    sustituye al del escenario, por ejemplo con el medido por ``cupo.benchmark``.
+    """
+    prm = scenario_params(scenario_cfg)
+    if cost_per_1000 is not None:
+        prm[COST_PER_1000_KEY] = float(cost_per_1000)
+    sfx, days, _ = _period(scenario_cfg, prm)
+    pred = _predictions(prm, days)
+    cost = _cost_per_1000(prm)
+    return {"periodo": sfx, COST_PER_1000_KEY: cost, f"pred_{sfx}": pred,
+            f"costo_inf_{sfx}": pred / 1000.0 * cost}
+
+
 def _system_costs(prm: Mapping[str, float], days: float, months: float, extra_ops: Any) -> dict[str, Any]:
     """Paso 4 (costos): verificación (personal extra), infraestructura e inferencia del periodo."""
     hours = prm["horas_operacion_dia"]
-    pred = prm["espacios"] * (3600.0 / prm["refresh_s"]) * hours * days
+    pred = _predictions(prm, days)
     infra_month = (prm["n_camaras"] * prm["costo_camara_Q"]) / prm["meses_amortizacion"] \
         + prm["costo_servidor_mes_Q"]
     return {

@@ -55,6 +55,15 @@ def hog_one(path: str, image_size: int = 64, orientations: int = 9,
                          pixels_per_cell=pixels_per_cell, cells_per_block=cells_per_block)
 
 
+def classical_features(hog_params: Mapping[str, Any], images: Sequence[Image.Image]) -> np.ndarray:
+    """Matriz HOG ``[N, D]`` de imágenes en memoria (recortes de un frame o patches abiertos).
+
+    Es el camino de la app y del benchmark: cada imagen se pasa a RGB y luego a ``hog_image``
+    con los parámetros ``hog`` guardados en el ``.joblib``.
+    """
+    return np.stack([hog_image(im.convert("RGB"), **hog_params) for im in images])
+
+
 def classical_logits(bundle: Mapping[str, Any], features: np.ndarray) -> np.ndarray:
     """Logits ``[0, z]`` de la regresión logística: softmax da sigmoid(z) = P(ocupado)."""
     z = bundle["pipeline"].decision_function(features)
