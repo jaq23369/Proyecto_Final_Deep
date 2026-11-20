@@ -94,9 +94,10 @@ proyecto_final_deep/
 Los datos viven **fuera** del repo (por defecto en `../Data`). `runs/`, `models/*` y los
 checkpoints están en `.gitignore`.
 
-**Modelo final:** `models/best.onnx` y `models/best.json` no se versionan en git. Se publicarán
-juntos como asset de un Release de GitHub del repositorio; para usarlos, descarga los dos
-archivos y colócalos en `models/` (o genéralos con `export_onnx`, ver
+**Modelo final:** `models/best.onnx` y `models/best.json` no se versionan en git. Están publicados
+como assets del Release [`v1.0`](https://github.com/jaq23369/Proyecto_Final_Deep/releases/tag/v1.0)
+del repositorio; para usarlos, descarga los dos archivos y colócalos en `models/` (o genéralos
+con `export_onnx`, ver
 [Modelo final](#modelo-final-onnx-latencia-costo-y-grad-cam)).
 
 ## Instalación
