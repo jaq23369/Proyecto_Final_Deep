@@ -687,8 +687,8 @@ fidelidad, y compara con el baseline interpretable B1 (HOG + regresión logísti
 
 | Parte del notebook | Qué hace | Salida en `results/xai/` |
 |---|---|---|
-| Explicaciones locales | 6 instancias de test elegidas con reglas fijas: acierto ocupado y libre con confianza alta, error ocupado→libre, caso más cercano a `t_H`, acierto con lluvia y error libre→ocupado | `instancias.csv`, `locales.png` |
-| Explicación global | Muestra estratificada de test por clase y clima: mapa promedio y parte de la atención en el centro del parche | `global.csv`, `global.png` |
+| Explicaciones locales | 6 instancias de test elegidas con reglas fijas: acierto ocupado y libre con confianza alta, error ocupado→libre, caso más cercano a `t_H`, acierto con lluvia y error libre→ocupado | `instancias.csv`, `locales.png`, `locales_compacta.png` |
+| Explicación global | Muestra estratificada de test por clase y clima: mapa promedio y parte de la atención en el centro del parche | `global.csv`, `global.png`, `global_compacta.png`, `por_camara.csv` |
 | Fidelidad | Tapa la zona que marca Grad-CAM y la compara con tapar la zona menos marcada y zonas al azar; repite con oclusión | `fidelidad.csv` |
 | Errores ocupado→libre | Grad-CAM de los errores caros de test | `errores_ocupado_libre.png` |
 | Baseline B1 | Contribución de cada bloque HOG al log-odds de "ocupado" | `baseline_b1.png` |
