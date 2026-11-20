@@ -56,6 +56,7 @@ PROSE_FLAGS: dict[str, set[str]] = {
                                    "--skip-measure", "--out"},
     "scripts/gradcam.py": {"--run", "--split", "--n", "--out", "--device"},
     "scripts/build_gallery.py": {"--out"},
+    "scripts/uncertainty.py": {"--allow-test"},
 }
 # Flags de herramientas externas (pip, uvicorn) que también aparecen en el README.
 EXTERNAL_FLAGS = {"--no-deps", "--index-url", "--upgrade", "--port"}
@@ -160,6 +161,7 @@ def test_readme_lists_expected_commands():
         "scripts/download_data.py", "scripts/eda.py", "scripts/train_classical.py",
         "scripts/results_table.py", "scripts/make_figures.py", "scripts/gradcam.py",
         "scripts/build_gallery.py", "scripts/export_classical.py", "scripts/inference_costs.py",
+        "scripts/uncertainty.py",
     }
     assert expected <= set(COMMANDS), f"faltan en el README: {expected - set(COMMANDS)}"
 
@@ -504,3 +506,13 @@ def test_internal_anchors_resolve():
     links = set(re.findall(r"\]\(#([^)]+)\)", TEXT))
     broken = sorted(links - anchors)
     assert not broken, f"enlaces internos rotos: {broken}"
+
+
+def test_uncertainty_usage_block_matches_help():
+    """El bloque de uso de scripts/uncertainty.py lista exactamente las opciones del --help."""
+    used = FLAGS.get("scripts/uncertainty.py", set())
+    res = run_help("scripts/uncertainty.py")
+    assert res.returncode == 0, res.stderr[-2000:]
+    offered = set(FLAG_RX.findall(res.stdout)) - {"--help"}
+    assert used == offered, f"solo en README: {sorted(used - offered)}; solo en --help: {sorted(offered - used)}"
+    assert "--allow-test" in used

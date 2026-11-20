@@ -77,6 +77,7 @@ proyecto_final_deep/
 │  ├─ eda.py                 análisis exploratorio → results/eda/
 │  ├─ train_classical.py     baseline B1 (HOG + regresión logística)
 │  ├─ results_table.py       tabla de iteraciones → results/iteraciones*.md/.csv, ranking_sensibilidad_*.csv
+│  ├─ uncertainty.py         IC95 bootstrap de métricas y valor en test y OOD → results/incertidumbre.*
 │  ├─ make_figures.py        figuras → results/figures/ (con --with-table, también la tabla)
 │  ├─ gradcam.py             Grad-CAM → results/figures/
 │  ├─ build_gallery.py       galería de demo de la app → app/gallery.json
@@ -84,7 +85,7 @@ proyecto_final_deep/
 │  └─ inference_costs.py     costo de inferencia de B1, B2 y el modelo final → results/costo_inferencia*
 ├─ app/                      app FastAPI: main.py (API), inference.py (ONNX y clásico), static/ (dashboard)
 ├─ models/                   best.onnx + best.json del modelo final y los baselines (no se versionan; ver abajo)
-├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones y de costo de inferencia
+├─ results/                  sí se versiona: eda/, figures/, tablas de iteraciones, incertidumbre y costo de inferencia
 ├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
 ├─ tests/                    pruebas (pytest)
 └─ runs/                     una carpeta por corrida (no se versiona)
@@ -457,6 +458,27 @@ Escribe cuatro tipos de archivo en `results/` (opciones: `--runs-dir`, `--out`):
 | `iteraciones.md` y `iteraciones.csv` | Una fila por grupo de runs (`name` de la config). Con varias semillas, media ± desviación (columnas `*_std`) y totales de tiempo y costo. Los runs con subconjunto (`subset` < 1) forman un grupo aparte, `"<name> (subset <f>)"`, y no se comparan con los completos. B0 es una fila sintética con valor 0. Columnas: modelo, cambios, parámetros, tamaño, train acc, F1 y tasa ocupado→libre en val, valor comercial con IC95, Δ valor frente a la iteración anterior, horas UVG, valor con un umbral único, personal extra, latencia y costo por predicción (si hay `benchmark.json`), tiempo y costo de entrenamiento, test y OOD (solo después del congelamiento) y `run_ids` (los runs del grupo). |
 | `iteraciones_resumen.md` | Una fila por iteración (B0, B1, ..., mnv3_ft_seeds), compacta para el informe. |
 | `ranking_sensibilidad_<escenario>.csv` | Para `comercial` y `uvg`: si cambia el modelo ganador al mover cada supuesto (±20 % y ±50 %). |
+
+### Incertidumbre en test y OOD
+
+```bash
+python scripts/uncertainty.py --allow-test
+    [--runs-dir runs] [--out results] [--n-boot N] [--seed 0]
+    [--final mnv3_ft_cost] [--refs b1_hog_lr b2_malexnet] [--iterations results/iteraciones.csv]
+```
+
+Solo reporta: no elige ni ajusta nada con test u OOD. Lee de cada run las predicciones del
+congelamiento (`test_preds.npz`, `ood_preds.npz`) y su temperatura y umbrales congelados
+(`calibration.json` o `thresholds.json`); no necesita el checkpoint. Con las mismas funciones,
+réplicas y semilla que `cupo.evaluate` calcula el IC95 por bootstrap del F1 macro y la tasa
+ocupado→libre (umbral 0.5) y del valor comercial y UVG (punto de operación). Con varias semillas
+reporta media ± desviación y el promedio de los IC95, como la tabla de iteraciones. Además, la
+diferencia de valor del modelo final frente a B1 y B2 con un bootstrap pareado (las mismas
+imágenes, emparejadas por ruta, para los dos modelos), con su IC95 y la proporción de remuestras
+en que gana el final. Escribe `results/incertidumbre.csv` (formato largo) y
+`results/incertidumbre.md` (tablas para el informe y conclusiones), y comprueba que las
+estimaciones puntuales coinciden con `results/iteraciones.csv`, que solo se lee. Sin
+`--allow-test` no corre.
 
 ### Encontrar el run del mejor modelo
 
