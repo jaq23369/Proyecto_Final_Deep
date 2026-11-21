@@ -89,6 +89,7 @@ proyecto_final_deep/
 ├─ models/                   best.onnx + best.json del modelo final y los baselines (no se versionan; ver abajo)
 ├─ notebooks/                explicabilidad.ipynb: Grad-CAM, oclusión y fidelidad del modelo final
 ├─ results/                  sí se versiona: eda/, figures/, xai/ (explicabilidad), tablas de iteraciones, incertidumbre y costo de inferencia
+├─ video/                    demo_cupo_seguro.mp4: video de la demo de la app
 ├─ docs/                     arquitectura.md: diagrama del sistema desplegado y plan de monitoreo
 ├─ tests/                    pruebas (pytest)
 └─ runs/                     una carpeta por corrida (no se versiona)
@@ -870,6 +871,8 @@ frames se agrupan por clima y la galería se desplaza dentro de su panel.
   ```bash
   SHOW_GROUND_TRUTH=1 uvicorn app.main:app --port 8000               # solo después del congelamiento
   ```
+
+**Video de la demo:** [`video/demo_cupo_seguro.mp4`](video/demo_cupo_seguro.mp4) (unos 6 minutos), con la app funcionando sobre imágenes que el modelo nunca vio.
 
 ## Pruebas
 
